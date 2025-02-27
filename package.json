@@ -1,0 +1,24 @@
+{
+  "name": "dathor-helpers",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "prepare": "npm run build"
+  },
+  "author": "Magnus Thor",
+  "license": "MIT",
+  "description": "Crafted from my daily web development experience, dathor-helpers provides a robust suite of JavaScript utilities, designed to streamline DOM manipulation, data handling, and common tasks.",
+  "keywords": [
+    "dom",
+    "utility",
+    "javascript",
+    "typescript"
+  ],
+  "devDependencies": {
+    "typedoc": "^0.27.9",
+    "typescript": "^5.7.3"
+  }
+}
