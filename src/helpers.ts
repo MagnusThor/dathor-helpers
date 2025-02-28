@@ -1,4 +1,100 @@
-export class DOMUtils {
+export class TaskScheduler {
+    private tasks: { id: number; time: number; callback: () => void }[] = [];
+    private animationFrameId: number | null = null;
+    private startTime: number | null = null;
+    private nextTaskId: number = 0;
+    private isPaused: boolean = false;
+    private pauseStartTime: number | null = null;
+    private idleTime: number = 0;
+
+    addTask(callback: () => void, delay: number): number {
+        const taskId = this.nextTaskId++;
+        this.tasks.push({ id: taskId, time: delay + this.idleTime, callback });
+        this.tasks.sort((a, b) => a.time - b.time);
+        this.start();
+        return taskId;
+    }
+
+    removeTask(taskId: number): boolean {
+        const index = this.tasks.findIndex(task => task.id === taskId);
+        if (index !== -1) {
+            this.tasks.splice(index, 1);
+            if (this.tasks.length === 0) {
+                this.stop();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    rescheduleTask(taskId: number, newDelay: number): boolean {
+        const task = this.tasks.find(task => task.id === taskId);
+        if (task) {
+            task.time = newDelay + this.idleTime;
+            this.tasks.sort((a, b) => a.time - b.time);
+            return true;
+        }
+        return false;
+    }
+
+    start(): void {
+        if (this.animationFrameId !== null) return;
+        if (this.isPaused && this.pauseStartTime) {
+            this.idleTime += performance.now() - this.pauseStartTime;
+            this.pauseStartTime = null;
+            this.isPaused = false;
+            this.tasks.forEach(task => task.time += this.idleTime);
+            this.tasks.sort((a, b) => a.time - b.time);
+        }
+
+        this.startTime = performance.now();
+        const executeTasks = (currentTime: number) => {
+            if (this.startTime === null) return;
+
+            const elapsed = currentTime - this.startTime;
+
+            while (this.tasks.length > 0 && this.tasks[0].time <= elapsed) {
+                const task = this.tasks.shift();
+                if (task) {
+                    task.callback();
+                }
+            }
+
+            if (this.tasks.length > 0) {
+                this.animationFrameId = requestAnimationFrame(executeTasks);
+            } else {
+                this.stop();
+            }
+        };
+
+        this.animationFrameId = requestAnimationFrame(executeTasks);
+    }
+
+    stop(): void {
+        if (this.animationFrameId !== null) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+            this.startTime = null;
+        }
+    }
+
+    clear(): void {
+        this.tasks = [];
+        this.stop();
+        this.idleTime = 0;
+    }
+
+    pause(): void {
+        if (this.animationFrameId !== null && !this.isPaused) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+            this.pauseStartTime = performance.now();
+            this.isPaused = true;
+        }
+    }
+}
+
+export class DathorHelpers {
 
     /**
      * Sets or gets the value of an HTML input element selected by the given selector.
@@ -9,10 +105,21 @@ export class DOMUtils {
      * @returns {T | null} - The value of the input element cast to type T, or null if the element is not found.
      */
     static value<T>(selector: string, value?: any) {
-        const element = DOMUtils.get<HTMLInputElement>(selector);
+        const element = DathorHelpers.get<HTMLInputElement>(selector);
         if (value && element) element!.value = value;
         return element ? element.value as T : null;
     }
+
+
+    /**
+     * Creates and returns a new instance of `TaskScheduler`.
+     *
+     * @returns {TaskScheduler} A new `TaskScheduler` instance.
+     */
+    static createTaskScheduler(): TaskScheduler {
+        return new TaskScheduler();
+    }
+
 
     /**
      * Retrieves an element from the DOM based on the provided selector.
@@ -27,6 +134,25 @@ export class DOMUtils {
             return document.querySelector(selector) as T | null; // Handle null parent
         }
         return parent.querySelector(selector) as T | null; // Handle null parent
+    }
+
+    /**
+   * Filters elements based on a selector within a set of parent elements.
+   *
+   * @param {string} filterSelector - The CSS selector to filter elements.
+   * @param {HTMLElement | HTMLElement[]} parents - The parent element(s) to search within.
+   * @returns {HTMLElement[]} - An array of filtered elements.
+   */
+    static filter(filterSelector: string, parents: HTMLElement | HTMLElement[]): HTMLElement[] {
+        if (!parents) {
+            return []; // Return empty array if no parents are provided.
+        }
+
+        if (Array.isArray(parents)) {
+            return parents.flatMap(parent => Array.from(parent.querySelectorAll(filterSelector)));
+        } else {
+            return Array.from(parents.querySelectorAll(filterSelector));
+        }
     }
 
     /**
@@ -99,7 +225,7 @@ export class DOMUtils {
             clearTimeout(timeoutId);
             timeoutId = setTimeout(() => func.apply(this, args), delay);
         };
-        
+
     }
 
     /**
@@ -196,7 +322,7 @@ export class DOMUtils {
     static css(element: HTMLElement | string, property: string, value?: string): string | void {
         const el = typeof element === "string" ? $D.get(element) : element;
         if (!el) return;
-    
+
         if (value === undefined) {
             return getComputedStyle(el).getPropertyValue(property);
         } else {
@@ -295,7 +421,7 @@ export class DOMUtils {
 
             if (elements.length > 1) {
                 // Delegate to onAll if multiple elements match
-                DOMUtils.onAll(event, elements, fn, options);
+                DathorHelpers.onAll(event, elements, fn, options);
                 return null; // Return null since multiple elements were handled
             }
 
@@ -326,7 +452,7 @@ export class DOMUtils {
 
         return null;
     }
-    
+
     /**
      * Removes all child nodes from the specified parent element.
      *
@@ -338,7 +464,7 @@ export class DOMUtils {
      * If the parent element is not found, the function will return without performing any action.
      */
     static removeChilds(selector: string | HTMLElement): void {
-        const parent = typeof (selector) === "string" ? DOMUtils.get(selector) : selector;
+        const parent = typeof (selector) === "string" ? DathorHelpers.get(selector) : selector;
         if (!parent) return;
         while (parent.firstChild) {
             parent.firstChild.remove()
@@ -433,7 +559,7 @@ export class DOMUtils {
      * @returns The next sibling element if it exists and is an HTMLElement, otherwise null.
      */
     static nextSibling(el: HTMLElement | string): HTMLElement | null {
-        const element = typeof el === "string" ? DOMUtils.get(el) : el;
+        const element = typeof el === "string" ? DathorHelpers.get(el) : el;
         return element && element.nextElementSibling instanceof HTMLElement ? element.nextElementSibling : null;
     }
 
@@ -444,7 +570,7 @@ export class DOMUtils {
      * @returns The previous sibling element if it exists and is an HTMLElement, otherwise null.
      */
     static previousSibling(el: HTMLElement | string): HTMLElement | null {
-        const element = typeof el === "string" ? DOMUtils.get(el) : el;
+        const element = typeof el === "string" ? DathorHelpers.get(el) : el;
         return element && element.previousElementSibling instanceof HTMLElement ? element.previousElementSibling as HTMLElement : null;
     }
 
@@ -457,7 +583,7 @@ export class DOMUtils {
      * @returns The current value of the data attribute if getting, or the set value if setting, or undefined if the element is not found.
      */
     static data(el: HTMLElement | string, key: string, value?: string | null): string | null | undefined {
-        const element = typeof el === "string" ? DOMUtils.get(el) : el;
+        const element = typeof el === "string" ? DathorHelpers.get(el) : el;
         if (!element) return undefined;
 
         if (value === undefined) {
@@ -479,7 +605,7 @@ export class DOMUtils {
      * @returns {T | null} - The closest matching ancestor element, or null if no match is found.
      */
     static closest<T extends HTMLElement>(el: HTMLElement | string, selector: string): T | null {
-        const element = typeof el === "string" ? DOMUtils.get(el) : el;
+        const element = typeof el === "string" ? DathorHelpers.get(el) : el;
         return element ? element.closest(selector) as T | null : null;
     }
 
@@ -490,7 +616,7 @@ export class DOMUtils {
      * @returns The parent HTMLElement of the given element, or null if the element has no parent or does not exist.
      */
     static parent(el: HTMLElement | string): HTMLElement | null {
-        const element = typeof el === "string" ? DOMUtils.get(el) : el;
+        const element = typeof el === "string" ? DathorHelpers.get(el) : el;
         return element ? element.parentElement : null;
     }
     /**
@@ -505,7 +631,7 @@ export class DOMUtils {
      * If the reference element or its parent node is not found, the new element will not be inserted.
      */
     static insertBefore(newElement: HTMLElement, referenceElement: HTMLElement | string): void {
-        const refEl = typeof referenceElement === "string" ? DOMUtils.get(referenceElement) : referenceElement;
+        const refEl = typeof referenceElement === "string" ? DathorHelpers.get(referenceElement) : referenceElement;
         if (refEl && refEl.parentNode) {
             refEl.parentNode.insertBefore(newElement, refEl);
         }
@@ -522,7 +648,7 @@ export class DOMUtils {
      * If the reference element or its parent node is not found, the new element will not be inserted.
      */
     static insertAfter(newElement: HTMLElement, referenceElement: HTMLElement | string): void {
-        const refEl = typeof referenceElement === "string" ? DOMUtils.get(referenceElement) : referenceElement;
+        const refEl = typeof referenceElement === "string" ? DathorHelpers.get(referenceElement) : referenceElement;
         if (refEl && refEl.parentNode) {
             refEl.parentNode.insertBefore(newElement, refEl.nextSibling);
         }
@@ -536,7 +662,7 @@ export class DOMUtils {
      * @returns `true` if the element has all the specified class names, otherwise `false`.
      */
     static hasClass(element: HTMLElement | string, classNames: string | string[]): boolean {
-        const el = typeof element === "string" ? DOMUtils.get(element) : element;
+        const el = typeof element === "string" ? DathorHelpers.get(element) : element;
         if (!el) return false;
 
         if (typeof classNames === "string") {
@@ -570,7 +696,7 @@ export class DOMUtils {
      * ```
      */
     static addClass(element: HTMLElement | string, classNames: string | string[]): void {
-        const el = typeof element === "string" ? DOMUtils.get(element) : element;
+        const el = typeof element === "string" ? DathorHelpers.get(element) : element;
         if (!el) return;
 
         if (typeof classNames === "string") {
@@ -587,7 +713,7 @@ export class DOMUtils {
      * @param classNames - A single class name or an array of class names to be removed from the element.
      */
     static removeClass(element: HTMLElement | string, classNames: string | string[]): void {
-        const el = typeof element === "string" ? DOMUtils.get(element) : element;
+        const el = typeof element === "string" ? DathorHelpers.get(element) : element;
         if (!el) return;
 
         if (typeof classNames === "string") {
@@ -621,7 +747,7 @@ export class DOMUtils {
      * ```
      */
     static toggleClass(element: Element | HTMLElement | string, classNames: string | string[]): void {
-        const el = typeof element === "string" ? DOMUtils.get(element) : element;
+        const el = typeof element === "string" ? DathorHelpers.get(element) : element;
         if (!el) return;
 
         if (typeof classNames === "string") {
@@ -640,7 +766,7 @@ export class DOMUtils {
      * @returns The current inner HTML if `htmlContent` is `undefined`, otherwise the new HTML content or `undefined` if the element is not found.
      */
     static html(el: HTMLElement | string, htmlContent?: string | null): string | null | undefined {
-        const element = typeof el === "string" ? DOMUtils.get(el) : el;
+        const element = typeof el === "string" ? DathorHelpers.get(el) : el;
         if (!element) return undefined;
 
         if (htmlContent === undefined) {
@@ -673,9 +799,9 @@ export class DOMUtils {
         const html = items.map((item, index) => itemTemplate(item, index)).join(joinString);
 
         if (container) {
-            const targetContainer = typeof container === "string" ? DOMUtils.get(container) : container;
+            const targetContainer = typeof container === "string" ? DathorHelpers.get(container) : container;
             if (targetContainer) {
-                DOMUtils.html(targetContainer, html);
+                DathorHelpers.html(targetContainer, html);
                 return;
             } else {
                 return html;
@@ -732,11 +858,11 @@ export class DOMUtils {
         container: HTMLElement | string,
         joinString: string = ''
     ): void {
-        const targetContainer = typeof container === "string" ? DOMUtils.get(container) : container;
+        const targetContainer = typeof container === "string" ? DathorHelpers.get(container) : container;
         if (!targetContainer) return;
 
-        const html = DOMUtils.repeat(items, itemTemplate, null, joinString);
-        DOMUtils.html(targetContainer, (targetContainer.innerHTML || '') + html);
+        const html = DathorHelpers.repeat(items, itemTemplate, null, joinString);
+        DathorHelpers.html(targetContainer, (targetContainer.innerHTML || '') + html);
     }
 
     /**
@@ -759,11 +885,11 @@ export class DOMUtils {
         wrapperClass?: string,
         itemClass?: string
     ): void {
-        const targetContainer = typeof container === "string" ? DOMUtils.get(container) : container;
+        const targetContainer = typeof container === "string" ? DathorHelpers.get(container) : container;
         if (!targetContainer) return;
 
-        const html = DOMUtils.wrappedList(items, itemTemplate, wrapperTag, wrapperClass, itemClass);
-        DOMUtils.html(targetContainer, (targetContainer.innerHTML || '') + html);
+        const html = DathorHelpers.wrappedList(items, itemTemplate, wrapperTag, wrapperClass, itemClass);
+        DathorHelpers.html(targetContainer, (targetContainer.innerHTML || '') + html);
     }
 
 
@@ -810,7 +936,7 @@ export class DOMUtils {
         element: HTMLElement | string,
         joinString: string = ', ' // Optional join string for arrays
     ): void {
-        const targetElement = typeof element === "string" ? DOMUtils.get(element) : element;
+        const targetElement = typeof element === "string" ? DathorHelpers.get(element) : element;
         if (!targetElement) return;
 
         const updateText = (newData: any) => {
@@ -822,7 +948,7 @@ export class DOMUtils {
             }
         };
 
-        const observedData = DOMUtils.observe(data, updateText);
+        const observedData = DathorHelpers.observe(data, updateText);
         updateText(observedData); // Initial render
     }
 
@@ -850,14 +976,14 @@ export class DOMUtils {
         element: HTMLElement | string,
         attribute: string
     ): void {
-        const targetElement = typeof element === "string" ? DOMUtils.get(element) : element;
+        const targetElement = typeof element === "string" ? DathorHelpers.get(element) : element;
         if (!targetElement) return;
 
         const updateAttribute = (newData: any) => {
             targetElement.setAttribute(attribute, newData[property]);
         };
 
-        const observedData = DOMUtils.observe(data, updateAttribute);
+        const observedData = DathorHelpers.observe(data, updateAttribute);
         updateAttribute(observedData); // Initial render
     }
 
@@ -879,7 +1005,7 @@ export class DOMUtils {
         element: HTMLElement | string,
         updateCallback: (newData: T) => string = (data) => JSON.stringify(data)
     ): void {
-        const targetElement = typeof element === "string" ? DOMUtils.get(element) : element;
+        const targetElement = typeof element === "string" ? DathorHelpers.get(element) : element;
         if (!targetElement) return;
 
         const render = (newData: T) => {
@@ -889,7 +1015,7 @@ export class DOMUtils {
             targetElement.innerHTML = renderedTemplate;
         };
 
-        const observedData = DOMUtils.observe<T>(data, render);
+        const observedData = DathorHelpers.observe<T>(data, render);
         render(observedData); // Initial render
     }
 
@@ -912,7 +1038,7 @@ export class DOMUtils {
                 for (const key in obj) {
                     if (obj.hasOwnProperty(key)) {
                         if (typeof obj[key] === 'object' && obj[key] !== null) {
-                            obj[key] = DOMUtils.observe(obj[key], updateCallback);
+                            obj[key] = DathorHelpers.observe(obj[key], updateCallback);
                             observeNested(obj[key]);
                         }
                     }
@@ -924,5 +1050,5 @@ export class DOMUtils {
     }
 
 }
-export const $D = DOMUtils;
-export default DOMUtils;
+export const $D = DathorHelpers;
+export default DathorHelpers;
