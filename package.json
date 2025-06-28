@@ -1,6 +1,6 @@
 {
   "name": "dathor-helpers",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -18,7 +18,9 @@
     "typescript"
   ],
   "devDependencies": {
+    "lil-ui": "^0.22.0-a",
     "typedoc": "^0.27.9",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "webpack": "^5.99.9"
   }
 }

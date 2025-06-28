@@ -7,6 +7,13 @@ export class TaskScheduler {
     private pauseStartTime: number | null = null;
     private idleTime: number = 0;
 
+    /**
+     * Adds a new task to the task list with a specified delay.
+     *
+     * @param callback - The function to be executed when the task is triggered.
+     * @param delay - The delay in milliseconds after which the task should be executed.
+     * @returns The unique identifier for the added task.
+     */
     addTask(callback: () => void, delay: number): number {
         const taskId = this.nextTaskId++;
         this.tasks.push({ id: taskId, time: delay + this.idleTime, callback });
@@ -15,6 +22,13 @@ export class TaskScheduler {
         return taskId;
     }
 
+    /**
+     * Removes a task from the task list by its ID.
+     * If the task is found and removed, it checks if the task list is empty and stops the process if it is.
+     *
+     * @param {number} taskId - The ID of the task to be removed.
+     * @returns {boolean} - Returns true if the task was found and removed, otherwise returns false.
+     */
     removeTask(taskId: number): boolean {
         const index = this.tasks.findIndex(task => task.id === taskId);
         if (index !== -1) {
@@ -27,6 +41,13 @@ export class TaskScheduler {
         return false;
     }
 
+    /**
+     * Reschedules a task by updating its delay time and re-sorting the task list.
+     *
+     * @param taskId - The ID of the task to be rescheduled.
+     * @param newDelay - The new delay time to be set for the task.
+     * @returns A boolean indicating whether the task was successfully rescheduled.
+     */
     rescheduleTask(taskId: number, newDelay: number): boolean {
         const task = this.tasks.find(task => task.id === taskId);
         if (task) {
@@ -37,6 +58,18 @@ export class TaskScheduler {
         return false;
     }
 
+    /**
+     * Starts the task scheduler. If the scheduler is paused, it will resume from where it left off.
+     * It calculates the idle time during the pause and adjusts the task times accordingly.
+     * The tasks are executed in order based on their scheduled time.
+     * If there are no tasks left, the scheduler stops automatically.
+     * 
+     * @remarks
+     * - If the scheduler is already running, this method does nothing.
+     * - The tasks are sorted by their scheduled time before execution.
+     * 
+     * @returns {void}
+     */
     start(): void {
         if (this.animationFrameId !== null) return;
         if (this.isPaused && this.pauseStartTime) {
@@ -70,6 +103,11 @@ export class TaskScheduler {
         this.animationFrameId = requestAnimationFrame(executeTasks);
     }
 
+    /**
+     * Stops the animation by canceling the current animation frame request.
+     * If an animation frame is currently active, it will be canceled and the
+     * animation frame ID and start time will be reset to null.
+     */
     stop(): void {
         if (this.animationFrameId !== null) {
             cancelAnimationFrame(this.animationFrameId);
@@ -78,12 +116,26 @@ export class TaskScheduler {
         }
     }
 
+    /**
+     * Clears the current tasks, stops any ongoing processes, and resets the idle time to zero.
+     */
     clear(): void {
         this.tasks = [];
         this.stop();
         this.idleTime = 0;
     }
 
+    /**
+     * Pauses the animation if it is currently running.
+     * 
+     * This method cancels the current animation frame request and sets the 
+     * `animationFrameId` to `null`. It also records the time at which the 
+     * pause occurred and sets the `isPaused` flag to `true`.
+     * 
+     * @remarks
+     * This method has no effect if the animation is already paused or if 
+     * there is no animation frame request pending.
+     */
     pause(): void {
         if (this.animationFrameId !== null && !this.isPaused) {
             cancelAnimationFrame(this.animationFrameId);
@@ -529,7 +581,7 @@ export class DathorHelpers {
         if (!(el instanceof HTMLElement)) {
             throw new Error('Invalid argument: el must be an HTMLElement');
         }
-        let path = [];
+        let path: string[] = [];
         while (el.nodeType === Node.ELEMENT_NODE) {
             let selector = el.nodeName.toLowerCase();
             if (el.id) {
