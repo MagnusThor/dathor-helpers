@@ -1,7 +1,6 @@
 import { IPageComponent } from "../../Interfaces/IPageComponent";
 import { IPageComponentProperties } from "../../Interfaces/IPageComponentProperties";
 import { IPageState } from "../../Interfaces/IPageState";
-import { IUIComponentRenderResult } from "../../Interfaces/IUIComponentRenderResult";
 import { UIComponentBase } from "../../UIComponent";
 
 

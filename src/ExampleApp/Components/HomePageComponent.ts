@@ -88,6 +88,7 @@ export class HomePageComponent extends PageComponent<IHomePageState> {
 
     // Event handler for programmatic navigation
     public goToProductPage(event: Event): void {
+        
         event.preventDefault(); // Prevent default link behavior if applicable
         console.log('Navigating programmatically to Product 456...');
         // Use the router instance passed in properties to navigate

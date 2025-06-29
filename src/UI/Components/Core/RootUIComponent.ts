@@ -13,14 +13,9 @@ const RootUIComponentTemplate = (component: RootUIComponent): string => /*html*/
                     <a href="#/about" class="hover:text-blue-300 transition-colors">About</a>
                 </div>
             </nav>
-        </header>
-        
+        </header>        
         <main id="main-content" class="flex-grow container mx-auto p-4">
-            </main>
-
-        <footer class="bg-gray-800 text-white p-4 text-center mt-auto">
-            &copy; ${new Date().getFullYear()} My Awesome App. All rights reserved.
-        </footer>
+        </main>
     </div>
 `;
 
@@ -34,7 +29,11 @@ export class RootUIComponent extends UIComponentBase {
 
         // Instantiate RouterOutletComponent and add it to child components.
         // The ID ('main-router-outlet') must match the outletSelector used by your Router.
-        this.childComponents.push(new RouterOutletComponent({ id: 'main-router-outlet', outletId: 'main-content' }));
+        this.childComponents.push(new RouterOutletComponent({ id: 'main-router-outlet', 
+            outletId: 'main-content'}));
+
+            console.log(this.childComponents);
+
     }
 
     // You no longer need to override the 'render' method here unless you have

@@ -2,6 +2,9 @@ import { ApplicationManager } from "../UI/Application/ApplicationManager";
 import { RootUIComponent } from "../UI/Components/Core/RootUIComponent";
 import { IRoute } from "../UI/Interfaces/IRoute";
 import { Router } from "../UI/Router/Router";
+import { CartBadgeComponent } from "./Components/CartBadgeComponent";
+import { FooterComponent } from "./Components/FooterComponent";
+
 import { HomePageComponent } from "./Components/HomePageComponent";
 import { ProductDetailComponent } from "./Components/ProductDetailsComponent";
 
@@ -27,6 +30,10 @@ export class MyApp {
 
         this.router = new Router(appRoutes, '#main-content');
 
+
+         
+
+
         appRoutes.forEach(route => {
             if (route.defaultProps) {
                 route.defaultProps.router = this.router;
@@ -36,6 +43,27 @@ export class MyApp {
         });
 
         const appRootComponent = new RootUIComponent({ id: 'app-root' });
+
+
+        // this.rootComponent = new RootUIComponent({ id: 'app-root-component', router: this.router });
+        // this.footerComponent = new FooterComponent({ id: 'app-footer-top-level' });
+
+        const footerComponent = new FooterComponent({ id: 'app-footer'});
+        
+        appRootComponent.addChild(footerComponent);
+        
+        const cartBadgeComponent = new CartBadgeComponent({ id:"cart-badge"});
+
+        footerComponent.addChild(cartBadgeComponent);
+
+
+      
+
+
+        
+ 
+
+
 
         this.appManager = new ApplicationManager(appRootComponent, this.router, 'body');
     }

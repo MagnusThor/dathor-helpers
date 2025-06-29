@@ -33,6 +33,9 @@ export class EventBus {
         if (!this.subscribers.has(topic)) {
             this.subscribers.set(topic, []);
         }
+
+        
+
         // Add the subscriber with their ID to the list for this topic
         this.subscribers.get(topic)?.push({ id: subscriberId, callback });
         console.log(`[EventBus] Component "${subscriberId}" subscribed to topic: "${topic}"`);
