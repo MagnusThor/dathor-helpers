@@ -4,7 +4,7 @@ module.exports = {
     mode: "development",
     watch: false,
     entry: {
-        "fiddle": "./dist/ExampleApp/MyApp.js",
+        "movie-app": "./dist/ExampleApp/MyApp.js",
 
     },
     output: {

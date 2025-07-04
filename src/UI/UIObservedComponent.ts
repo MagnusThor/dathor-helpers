@@ -2,7 +2,6 @@
 
 import DathorHelpers from "../helpers/all";
 import { IGlobalAppState } from "./Interfaces/IGlobalAppState";
-import { Effects } from "./Effects/Effects";
 import { IUIComponentPropertyBag } from "./Interfaces/IUIComponentPropertyBag";
 import { UIComponentBase } from "./UIComponent";
 
@@ -37,7 +36,8 @@ export class UIObservedComponent<TState extends object = any> extends UIComponen
         // We use a microtask to ensure the DOM is ready for the first render.
         // Alternatively, if you're sure render will only be called once by ApplicationManager,
         // you can skip this immediate render here.
-         this.handleStateChange(); 
+         //this.handleStateChange(); 
+         this.render();
     }
 
       handleGlobalStateChange(newData: IGlobalAppState): void {
@@ -64,7 +64,7 @@ export class UIObservedComponent<TState extends object = any> extends UIComponen
      */
      async handleStateChange(): Promise<void> {
         console.log(`[${this.properties?.id || this.constructor.name}] State changed. Triggering re-render...`);
-        await Effects.reRender(this);
+        await this.reRender();
     }
 
     /**

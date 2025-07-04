@@ -5,11 +5,11 @@ import { IUIComponentPropertyBag } from "../../UI/Interfaces/IUIComponentPropert
 /**
  * Properties for the AddToCartAction component.
  */
-export interface IAddToCartActionProperties extends IUIComponentPropertyBag<any> {
+export interface IAddToFavoritesActionProperties extends IUIComponentPropertyBag<any> {
     /** The ID of the product to be added to the cart. */
-    productId: string;
+    movieId: string;
     /** The quantity of the product to add. Defaults to 1. */
-    quantity?: number;
+    rating?: number;
     /** The label text for the button. Defaults to "Add to Cart". */
     label?: string;
     /** Optional CSS classes to apply to the button. */

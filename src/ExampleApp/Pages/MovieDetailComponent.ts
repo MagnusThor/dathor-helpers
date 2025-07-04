@@ -1,35 +1,31 @@
-import { PageComponent } from "../../UI/Components/Core/PageComponent";
+import { PageComponent } from "../../UI/Component/Core/PageComponent";
 import { IPageComponentProperties } from "../../UI/Interfaces/IPageComponentProperties";
-import { IPageState } from "../../UI/Interfaces/IPageState";
 import { Router } from "../../UI/Router/Router";
-import { AddToCartAction } from "./Actions/AddToCartAction";
+import { AddToFavoritesAction } from "../Actions/AddToFavoritesAction";
+import { IMovieDetailState } from "../Interfaces/IMovieDetailState";
+import { IMovieDetails } from "../Interfaces/IMovieDetails";
+import { serviceLocator } from "../../UI/Service/ServiceLocator";
+import { MovieApiService } from "../Services/MovieService";
 
-export interface IProductDetailState extends IPageState {
-    productId: string | null;
-    productName: string;
-    productDescription: string;
-    loading: boolean;
-    error: string | undefined;
-}
-
-export class ProductDetailComponent extends PageComponent<IProductDetailState> {
+export class MovieDetailComponent extends PageComponent<IMovieDetailState> {
 
     // Declare a private property to hold the instance of the AddToCartAction component
-    private _addToCartComponent: AddToCartAction | null = null;
+    private _addToCartComponent: AddToFavoritesAction | null = null;
 
-    constructor(properties: IPageComponentProperties<IProductDetailState>) {
+    constructor(properties: IPageComponentProperties<IMovieDetailState>) {
         super({
             ...properties, // Inherit base properties like id, path, router, routeParams
             // Provide the template function directly in properties
-            template: (component: ProductDetailComponent) => {
+            template: (component: MovieDetailComponent) => {
                 // Safely access state properties using non-null assertion as state is initialized
-                const { productId, productName, productDescription, loading, error } = component.properties!.state!;
+                const { movieId: movieId, title: title, plot: plot,year:year, loading, error } = 
+                component.properties!.state!;
                 const router: Router = component.properties!.router;
 
                 if (loading) {
                     return /*html*/`
                         <div class="product-detail-page p-6 bg-white shadow rounded-lg text-center">
-                            <p class="text-gray-600 text-lg">Loading product details for ID: ${productId}...</p>
+                            <p class="text-gray-600 text-lg">Loading product details for ID: ${movieId}...</p>
                             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mt-4"></div>
                         </div>
                     `;
@@ -48,11 +44,11 @@ export class ProductDetailComponent extends PageComponent<IProductDetailState> {
                     `;
                 }
 
-                if (!productId) {
+                if (!movieId) {
                     return /*html*/`
                         <div class="product-detail-page p-6 bg-white shadow rounded-lg text-center">
-                            <h1 class="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h1>
-                            <p class="text-gray-700">No product ID was provided or found in the URL.</p>
+                            <h1 class="text-2xl font-bold text-gray-900 mb-4">Movie Not Found</h1>
+                            <p class="text-gray-700">No ID was provided or found in the URL.</p>
                             <button class="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors duration-200"
                                     data-event-click="goBack">
                                 Go Back
@@ -63,11 +59,11 @@ export class ProductDetailComponent extends PageComponent<IProductDetailState> {
 
                 return /*html*/`
                     <div id="${component.properties.id}" class="product-detail-page p-6 bg-white shadow rounded-lg mb-6">
-                        <h1 class="text-3xl font-bold text-gray-900 mb-4">Product Details for ID: ${productId}</h1>
-                        <h2 class="text-2xl font-semibold text-gray-800 mb-2">${productName}</h2>
-                        <p class="text-gray-700 mb-4">${productDescription}</p>
+                        <h1 class="text-3xl font-bold text-gray-900 mb-4">Product Details for ID: ${movieId}</h1>
+                        <h2 class="text-2xl font-semibold text-gray-800 mb-2">${title}</h2>
+                        <p class="text-gray-700 mb-4">${plot}</p>
 
-                        <div id="add-to-cart-container-${productId}" class="my-6">
+                        <div id="add-to-cart-container-${movieId}" class="my-6">
                             </div>
                         
                         <button class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded transition-colors duration-200"
@@ -78,51 +74,54 @@ export class ProductDetailComponent extends PageComponent<IProductDetailState> {
                 `;
             },
             state: { // Set initial state
-                productId: null,
-                productName: '',
-                productDescription: '',
+                movieId: null,
+                title: '',
+                plot: '',
                 loading: true, // Start in a loading state
                 error: undefined
-            } as IProductDetailState, // Assert initial state type
+            } as IMovieDetailState, // Assert initial state type
             // Define event handlers for elements within this component's template
             eventHandlers: {
                 click: (event: Event) => {
                     const target = event.target as HTMLElement;
                     if (target.dataset.eventClick === 'goBack') {
-                        (this as ProductDetailComponent).goBack();
+                        (this as MovieDetailComponent).goBack();
                     }
                 }
             }
         });
+
+    
+
+
     }
 
     // Lifecycle method called when the page component is entered
-    public async onEnter(prevProps?: IPageComponentProperties<IProductDetailState>): Promise<void> {
+    public async onEnter(prevProps?: IPageComponentProperties<IMovieDetailState>): Promise<void> {
         await super.onEnter(prevProps); // Call base class onEnter
-        console.log(`[ProductDetailComponent] onEnter: current path is ${this.properties?.path}`);
+        console.log(`[MovieDetailComponent] onEnter: current path is ${this.properties?.path}`);
 
-        const productId = this.properties!.routeParams!.id || null;
-        console.log(`[ProductDetailComponent] Product ID from URL parameters: ${productId}`);
+        const movieId = this.properties!.routeParams!.id || null;
+        console.log(`[MovieDetailComponent] Product ID from URL parameters: ${movieId}`);
 
-        this.updateState({ productId, loading: true, error: undefined });
+        this.updateState({ movieId: movieId, loading: true, error: undefined });
 
-        if (productId) {
+        if (movieId) {
             try {
-                const productData = await this.fetchProductData(productId);
+                const movieData = await this.fetchMovieData(movieId);
                 this.updateState({
-                    productName: productData.name,
-                    productDescription: productData.description,
+                    title: movieData.title,
+                    plot: movieData.plot,
                     loading: false,
                     error: undefined
                 });
                 
-                // --- CRITICAL STEP: Create and render the AddToCartAction after product data is loaded ---
-                this.createAddToCartComponent(productId);
+                this.createAddToCartComponent(movieId);
 
             } catch (err) {
                 console.error("Failed to fetch product data:", err);
                 this.updateState({
-                    error: `Could not load product with ID: ${productId}. ${err instanceof Error ? err.message : String(err)}`,
+                    error: `Could not load product with ID: ${movieId}. ${err instanceof Error ? err.message : String(err)}`,
                     loading: false
                 });
             }
@@ -134,7 +133,7 @@ export class ProductDetailComponent extends PageComponent<IProductDetailState> {
     // Lifecycle method called when the page component is left
     public onLeave(): void {
         super.onLeave();
-        console.log(`[ProductDetailComponent] onLeave: path was ${this.properties?.path}`);
+        console.log(`[MovieDetailComponent] onLeave: path was ${this.properties?.path}`);
         // --- CRITICAL STEP: Dispose of the child component when the parent leaves ---
         if (this._addToCartComponent) {
             this._addToCartComponent.dispose();
@@ -142,38 +141,37 @@ export class ProductDetailComponent extends PageComponent<IProductDetailState> {
         }
     }
 
-    // --- Private Helper Methods ---
+    private async fetchMovieData(id: string): Promise<IMovieDetails> {
+        return new Promise(async(resolve, reject) => {
+            setTimeout(async () => {
 
-    // Simulates an asynchronous API call to fetch product data
-    private async fetchProductData(id: string): Promise<{ name: string; description: string }> {
-        return new Promise((resolve, reject) => {
-            setTimeout(() => { // Simulate network delay
-                if (id === '123') {
-                    resolve({ name: 'Awesome Gadget 123', description: 'A highly advanced and essential gadget for modern life. It does everything!' });
-                } else if (id === '456') {
-                    resolve({ name: 'Super Widget 456', description: 'This is the super widget 456, known for its incredible durability and efficiency.' });
-                } else if (id === 'abc') {
-                    resolve({ name: 'Mystery Item ABC', description: 'An enigmatic item with unknown properties and a mysterious past. Buyer beware!' });
+
+                const service = serviceLocator.get<MovieApiService>("MovieApiService");
+
+                const movieDetails = await service.getMovieDetails(id);
+                if (movieDetails === null) {
+                    reject(new Error(`Movie with ID ${id} not found.`));
                 } else {
-                    reject(new Error('Product not found for this ID.')); // Simulate 404 or other error
+                    resolve(movieDetails);
                 }
+             
             }, 700); // 700ms delay
         });
     }
 
     /**
      * Creates, adds, and renders the AddToCartAction component.
-     * @param productId The ID of the product to associate with the AddToCart button.
+     * @param id The ID of the product to associate with the AddToCart button.
      */
-    private async createAddToCartComponent(productId: string): Promise<void> {
+    private async createAddToCartComponent(id: string): Promise<void> {
         // Ensure the main component's element exists and is rendered
         if (!this._element) {
-            console.error(`[ProductDetailComponent] Cannot create AddToCartAction: Main component element not found.`);
+            console.error(`[MovieDetailComponent] Cannot create AddToCartAction: Main component element not found.`);
             return;
         }
 
         // Find the specific container div within this component's rendered HTML
-        const containerElement = this._element.querySelector(`#add-to-cart-container-${productId}`);
+        const containerElement = this._element.querySelector(`#add-to-cart-container-${id}`);
 
         if (containerElement) {
             // Dispose of any existing AddToCartComponent instance if this is a re-render
@@ -181,15 +179,15 @@ export class ProductDetailComponent extends PageComponent<IProductDetailState> {
                 this._addToCartComponent.dispose();
             }
 
-            this._addToCartComponent = new AddToCartAction({
-                id: `add-to-cart-button-${productId}`, // Unique ID for the button instance
-                productId: productId,
-                quantity: 1, // Default quantity
-                label: `Add ${productId} to Cart`,
+            this._addToCartComponent = new AddToFavoritesAction({
+                id: `add-to-favorites-button-${id}`, // Unique ID for the button instance
+                movieId: id,
+                rating: 1, // Default quantity
+                label: `Add ${id} to Favorites`,
                 componentInstance: this // Pass current component for context in event handlers
             });
 
-            // Add the AddToCartAction as a child component of ProductDetailComponent.
+            // Add the AddToCartAction as a child component of MovieDetailComponent.
             // This ensures it benefits from the parent's lifecycle management (e.g., disposal).
             this.addChild(this._addToCartComponent);
 
@@ -199,12 +197,12 @@ export class ProductDetailComponent extends PageComponent<IProductDetailState> {
                 // Clear the container before appending, just in case
                 containerElement.innerHTML = '';
                 containerElement.appendChild(renderResult.result);
-                console.log(`[ProductDetailComponent] AddToCartAction component mounted for product ${productId}.`);
+                console.log(`[MovieDetailComponent] AddToCartAction component mounted for product ${id}.`);
             } else {
-                console.warn(`[ProductDetailComponent] AddToCartAction render resulted in no element.`);
+                console.warn(`[MovieDetailComponent] AddToCartAction render resulted in no element.`);
             }
         } else {
-            console.error(`[ProductDetailComponent] Container #add-to-cart-container-${productId} not found for AddToCartAction.`);
+            console.error(`[MovieDetailComponent] Container #add-to-cart-container-${id} not found for AddToCartAction.`);
         }
     }
 

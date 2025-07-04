@@ -4,12 +4,12 @@ import { IUIComponentState } from "../../UI/Interfaces/IUIComponentState";
 /**
  * Properties for the CartBadgeComponent.
  */
-export interface ICartBadgeComponentProperties extends IUIComponentPropertyBag<any> {
+export interface IFavoritesBadgeComponentProperties extends IUIComponentPropertyBag<any> {
     // No specific properties needed beyond IUIComponentPropertyBag for now,
     // as it mainly relies on internal state and event subscriptions.
 }
 
-export interface ICartBadgeComponentState extends IUIComponentState {
+export interface IFavoritesBadgeComponentState extends IUIComponentState {
     /** The current count of items in the cart (for the badge). */
     itemCount: number;
     /** Whether the badge should be visible (e.g., only if itemCount > 0). */

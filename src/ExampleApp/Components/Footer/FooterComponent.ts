@@ -1,5 +1,6 @@
-import { IUIComponentPropertyBag } from "../../UI/Interfaces/IUIComponentPropertyBag";
-import { UIComponentBase } from "../../UI/UIComponent";
+import { IUIComponentPropertyBag } from "../../../UI/Interfaces/IUIComponentPropertyBag";
+import { UIComponentBase } from "../../../UI/UIComponent";
+import { FavoritesBadgeComponent } from "../Favorites/FavoritesBadgeComponent";
 
 export interface IFooterComponentProperties extends IUIComponentPropertyBag<any> {
     // No specific properties needed for the footer itself.
@@ -21,6 +22,12 @@ export class FooterComponent extends UIComponentBase<any, IFooterComponentProper
          </footer>
             `
         });
+
+        const favoriteBadgeComponent = new FavoritesBadgeComponent({ id: "favorites-badge" });
+
+        this.addChild(favoriteBadgeComponent)
+
+
     }
 
   

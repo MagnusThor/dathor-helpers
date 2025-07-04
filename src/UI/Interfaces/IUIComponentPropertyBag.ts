@@ -10,3 +10,4 @@ export interface IUIComponentPropertyBag<TState extends object = any> {
     componentInstance?: IUIComponent<IUIComponentPropertyBag<TState>>; // Reference to the component instance itself
 
 }
+

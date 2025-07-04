@@ -1,4 +1,4 @@
-// eventBus.ts (Updated)
+// core/EventBus.ts (Your Updated Code)
 
 // Interface to store subscriber information, including their ID
 export interface ISubscriberInfo {
@@ -11,10 +11,15 @@ export class EventBus {
     // and the value is an array of SubscriberInfo objects for that topic.
     private subscribers = new Map<string, ISubscriberInfo[]>();
 
+    // Singleton instance
     private static instance: EventBus;
 
-    private constructor() { }
+    // Private constructor to enforce singleton pattern
+    private constructor() {
+        console.log("[EventBus] Initialized (Singleton)");
+    }
 
+    // Static method to get the singleton instance
     public static getInstance(): EventBus {
         if (!EventBus.instance) {
             EventBus.instance = new EventBus();
@@ -24,7 +29,7 @@ export class EventBus {
 
     /**
      * Subscribes a callback function to a specific topic.
-     * The `subscriberId` is now required to enable targeted messages.
+     * The `subscriberId` is now required to enable targeted messages and proper unsubscription.
      * @param topic The name of the event topic.
      * @param callback The function to be called when the event is published.
      * @param subscriberId The ID of the component/entity that is subscribing.
@@ -34,16 +39,20 @@ export class EventBus {
             this.subscribers.set(topic, []);
         }
 
-        
+        // Check if this specific subscriber/callback combination already exists for this topic
+        const existingSubscribers = this.subscribers.get(topic);
+        if (existingSubscribers?.some(sub => sub.id === subscriberId && sub.callback === callback)) {
+            console.warn(`[EventBus] Subscriber "${subscriberId}" already has this callback subscribed to topic: "${topic}". Skipping.`);
+            return; // Prevent duplicate subscriptions
+        }
 
         // Add the subscriber with their ID to the list for this topic
-        this.subscribers.get(topic)?.push({ id: subscriberId, callback });
+        existingSubscribers?.push({ id: subscriberId, callback });
         console.log(`[EventBus] Component "${subscriberId}" subscribed to topic: "${topic}"`);
     }
 
     /**
-     * Unsubscribes a specific callback from a topic.
-     * The `subscriberId` is now required to correctly identify the subscription to remove.
+     * Unsubscribes a specific callback from a topic for a given subscriber ID.
      * @param topic The name of the event topic.
      * @param callback The original callback function to remove.
      * @param subscriberId The ID of the component/entity that subscribed.
@@ -51,12 +60,38 @@ export class EventBus {
     unsubscribe(topic: string, callback: (...args: any[]) => void, subscriberId: string): void {
         const topicSubscribers = this.subscribers.get(topic);
         if (topicSubscribers) {
+            const initialLength = topicSubscribers.length;
             // Filter out the specific subscription by matching both callback and ID
-            this.subscribers.set(
-                topic,
-                topicSubscribers.filter(sub => !(sub.callback === callback && sub.id === subscriberId))
-            );
-            console.log(`[EventBus] Component "${subscriberId}" unsubscribed from topic: "${topic}"`);
+            const newSubscribers = topicSubscribers.filter(sub => !(sub.callback === callback && sub.id === subscriberId));
+            
+            if (newSubscribers.length < initialLength) {
+                this.subscribers.set(topic, newSubscribers);
+                console.log(`[EventBus] Component "${subscriberId}" unsubscribed from topic: "${topic}".`);
+            } else {
+                 console.warn(`[EventBus] No matching subscription found for ID "${subscriberId}" and topic "${topic}" to unsubscribe.`);
+            }
+        } else {
+            console.warn(`[EventBus] No subscribers found for topic "${topic}" to unsubscribe from.`);
+        }
+    }
+
+    /**
+     * Unsubscribes ALL callbacks for a given subscriber ID from a specific topic.
+     * This is useful for components to clean up all their subscriptions on a topic when they leave.
+     * @param topic The name of the event topic.
+     * @param subscriberId The ID of the component/entity to unsubscribe.
+     */
+    unsubscribeAllForId(topic: string, subscriberId: string): void {
+        const topicSubscribers = this.subscribers.get(topic);
+        if (topicSubscribers) {
+            const initialLength = topicSubscribers.length;
+            const newSubscribers = topicSubscribers.filter(sub => sub.id !== subscriberId);
+            if (newSubscribers.length < initialLength) {
+                this.subscribers.set(topic, newSubscribers);
+                console.log(`[EventBus] Unsubscribed all callbacks for component "${subscriberId}" from topic: "${topic}".`);
+            } else {
+                console.warn(`[EventBus] No subscriptions found for ID "${subscriberId}" on topic "${topic}" to unsubscribe.`);
+            }
         }
     }
 
@@ -113,4 +148,4 @@ export class EventBus {
         }
     }
 }
-export const eventBus = EventBus.getInstance();
+

@@ -1,20 +1,20 @@
 // src/UI/Components/Actions/AddToCartAction.ts
 
-import { UIComponentBase } from "../../../UI/UIComponent";
-import { IAddToCartActionProperties } from "../../Interfaces/IAddToCartActionProperties";
+import { UIComponentBase } from "../../UI/UIComponent";
+import { IAddToFavoritesActionProperties } from "../Interfaces/IAddToFavoritesActionProperties";
 
 /**
  * A component representing an "Add to Cart" button.
  * It publishes an event when clicked.
  */
-export class AddToCartAction extends UIComponentBase<any, IAddToCartActionProperties> {
+export class AddToFavoritesAction extends UIComponentBase<any, IAddToFavoritesActionProperties> {
 
-    constructor(properties: IAddToCartActionProperties) {
+    constructor(properties: IAddToFavoritesActionProperties) {
         super({
             ...properties,
-            id: properties.id || `add-to-cart-${properties.productId}`, // Ensure a unique ID
+            id: properties.id || `add-to-cart-${properties.movieId}`, // Ensure a unique ID
             name: properties.name || 'AddToCartAction',
-            template: (component: AddToCartAction) => {
+            template: (component: AddToFavoritesAction) => {
                 const props = component.properties;
                 const label = props.label || "Add to Cart";
                 const buttonClasses = props.buttonClasses || "bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors duration-200";
@@ -36,8 +36,8 @@ export class AddToCartAction extends UIComponentBase<any, IAddToCartActionProper
         });
 
         // Set default quantity if not provided
-        if (this.properties.quantity === undefined || this.properties.quantity === null) {
-            this.properties.quantity = 1;
+        if (this.properties.rating === undefined || this.properties.rating === null) {
+            this.properties.rating = 1;
         }
     }
 
@@ -48,12 +48,12 @@ export class AddToCartAction extends UIComponentBase<any, IAddToCartActionProper
     public handleAddToCart(event: Event): void {
         event.preventDefault(); // Prevent default button behavior if it's inside a form
 
-        console.log(`[${this.properties.id}] Adding product ${this.properties.productId} (Qty: ${this.properties.quantity}) to cart.`);
+        console.log(`[${this.properties.id}] Adding product ${this.properties.movieId} (Qty: ${this.properties.rating}) to cart.`);
 
         // Publish an event that other parts of the application (e.g., a CartService) can listen to
-        this.publish('addToCart', {
-            productId: this.properties.productId,
-            quantity: this.properties.quantity
+        this.publish('addToFavorites', {
+            productId: this.properties.movieId,
+            quantity: this.properties.rating
         });
 
     }

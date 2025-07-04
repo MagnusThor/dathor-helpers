@@ -1,9 +1,11 @@
 import { $D } from "../helpers/all";
-import { eventBus } from "./Application/EventBus";
+import { EventBus } from "./Application/EventBus";
+
 import { IActiveEventListener } from "./Interfaces/IActiveEventListener";
 import { IComponentSubscription } from "./Interfaces/IComponentSubscription";
 import { IUIComponentPropertyBag } from "./Interfaces/IUIComponentPropertyBag";
 import { IUIComponentRenderResult } from "./Interfaces/IUIComponentRenderResult";
+import { serviceLocator } from "./Service/ServiceLocator";
 
 export abstract class UIComponentBase<
     TState extends object = any,
@@ -17,12 +19,15 @@ export abstract class UIComponentBase<
     private _activeSubscriptions: IComponentSubscription[] = [];
     private _activeEventListeners: IActiveEventListener[] = [];
 
+    protected eventBus: EventBus; 
+
     constructor(properties: TProperties) {
         this.properties = properties;
         this._state = properties.state || ({} as TState);
         console.log(
             `[${this.properties.name || this.properties.id}] Component initialized.`
         );
+        this.eventBus = serviceLocator.get<EventBus>('EventBus');
     }
 
 
@@ -277,6 +282,9 @@ export abstract class UIComponentBase<
         return this._state;
     }
 
+    unsubscribe(topic:string,action: (...args: any[]) => void,subscriberId:string): void{
+        this.eventBus.unsubscribe(topic,action,subscriberId)
+    }
 
     subscribe(topic: string, action: (...args: any[]) => void): void {
         if (!this.properties?.id) {
@@ -289,19 +297,19 @@ export abstract class UIComponentBase<
 
         const boundAction = action.bind(this);
 
-        eventBus.subscribe(topic, boundAction, this.properties.id);
+        this.eventBus.subscribe(topic, boundAction, this.properties.id);
 
         this._activeSubscriptions.push({ topic, action: boundAction });
     }
 
 
     publish<T>(topic: string, data?: T): void {
-        eventBus.publish(topic, data);
+        this.eventBus.publish(topic, data);
     }
 
 
     publishTo<T>(targetComponentId: string, topic: string, data?: T): void {
-        eventBus.publishTo(targetComponentId, topic, data);
+        this.eventBus.publishTo(targetComponentId, topic, data);
     }
 
 

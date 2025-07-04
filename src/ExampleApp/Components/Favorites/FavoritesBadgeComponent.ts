@@ -1,24 +1,24 @@
-import { UIComponentBase } from "../../UI/UIComponent";
+import { UIComponentBase } from "../../../UI/UIComponent";
 import {
-  ICartBadgeComponentState,
-  ICartBadgeComponentProperties,
-} from "../Interfaces/ICartBadgeComponentProperties";
+  IFavoritesBadgeComponentState,
+  IFavoritesBadgeComponentProperties,
+} from "../../Interfaces/IFavoritesBadgeComponentProperties";
 
-export class CartBadgeComponent extends UIComponentBase<
-  ICartBadgeComponentState,
-  ICartBadgeComponentProperties
+export class FavoritesBadgeComponent extends UIComponentBase<
+  IFavoritesBadgeComponentState,
+  IFavoritesBadgeComponentProperties
 > {
-  constructor(properties: ICartBadgeComponentProperties) {
+  constructor(properties: IFavoritesBadgeComponentProperties) {
     super({
       ...properties,
-      id: properties.id || "cart-badge-component",
-      name: properties.name || "CartBadgeComponent",
+      id: properties.id || "favorites-badge-component",
+      name: properties.name || "FavoriesBadgeComponent",
       state: {
         itemCount: 0, // Initial state: no items
         isVisible: false, // Not visible initially
         ...properties.state, // Allow initial state override
       },
-      template: (component: CartBadgeComponent) => {
+      template: (component: FavoritesBadgeComponent) => {
          const state = component.getState(); 
         if (!state.isVisible || state.itemCount <= 0) {
           return /*html*/ `<div id="${component.properties.id}" class="hidden"></div>`;
@@ -39,10 +39,10 @@ export class CartBadgeComponent extends UIComponentBase<
    */
   public async onEnter(): Promise<void> {
     await super.onEnter(); // IMPORTANT: Call super.onEnter() first!
-    console.log(`[${this.properties.id}] Subscribing to 'addToCart' events.`);
+    console.log(`[${this.properties.id}] Subscribing to 'addToFavorites' events.`);
     // Subscribe to the 'addToCart' event published by AddToCartAction
     // The handler updates the component's state.
-    this.subscribe("addToCart", this.handleAddToCartEvent.bind(this));
+    this.subscribe("addToFavorites", this.handleEvent.bind(this));
     // You can also use eventBus.subscribe directly if your base UIComponent doesn't have a subscribe method.
     // eventBus.subscribe('addToCart', this.handleAddToCartEvent.bind(this));
   }
@@ -52,7 +52,7 @@ export class CartBadgeComponent extends UIComponentBase<
    */
   public onLeave(): void {
     console.log(
-      `[${this.properties.id}] Unsubscribing from 'addToCart' events.`
+      `[${this.properties.id}] Unsubscribing from 'addToFavorites' events.`
     );
     // Unsubscribe from the 'addToCart' event
     //this.unsubscribe('addToCart', this.handleAddToCartEvent.bind(this));
@@ -62,29 +62,26 @@ export class CartBadgeComponent extends UIComponentBase<
    * Event handler for the 'addToCart' event.
    * @param payload The data sent with the event (e.g., { productId, quantity }).
    */
-  private handleAddToCartEvent(payload: {
+  private handleEvent(payload: {
     productId: string;
     quantity: number;
   }): void {
     console.log(
-      `[${this.properties.id}] Received 'addToCart' event for product ${payload.productId}, quantity ${payload.quantity}.`
+      `[${this.properties.id}] Received 'addToFavorites' event for product ${payload.productId}, quantity ${payload.quantity}.`
     );
 
     console.log(
-      `[${this.properties.id}] Received 'addToCart' event for product ${payload.productId}, quantity ${payload.quantity}.`
+      `[${this.properties.id}] Received 'addToFavorites' event for product ${payload.productId}, quantity ${payload.quantity}.`
     );
 
-    // --- FIX IS HERE: Calculate new state, then pass it directly to updateState ---
     const currentCount = this.getState().itemCount; // Get current state
     const newCount = currentCount + payload.quantity;
 
-
-
-
-    // Update the state based on the event data
     this.setState({
       itemCount: newCount,
       isVisible: newCount > 0,
     });
+
+   
   }
 }

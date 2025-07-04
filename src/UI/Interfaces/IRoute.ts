@@ -1,6 +1,6 @@
 // Core/Interfaces/IRoute.ts
 
-import { PageComponent } from "../Components/Core/PageComponent";
+import { PageComponent } from "../Component/Core/PageComponent";
 import { IPageComponentProperties } from "./IPageComponentProperties";
 
 

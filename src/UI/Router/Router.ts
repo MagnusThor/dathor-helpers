@@ -1,10 +1,11 @@
 // Core/Router.ts
 
-import { PageComponent } from "../Components/Core/PageComponent";
+import { PageComponent } from "../Component/Core/PageComponent";
 import { IPageComponentProperties } from "../Interfaces/IPageComponentProperties";
 import { IRoute } from "../Interfaces/IRoute";
+import { IRouter } from "../Interfaces/IRouter";
 
-export class Router {
+export class Router implements IRouter {
     private routes: IRoute[];
     private outletElement: HTMLElement | null = null;
     private currentComponent: PageComponent<any> | null = null; // Track current page component
@@ -13,6 +14,10 @@ export class Router {
     constructor(routes: IRoute[], private outletSelector: string) {
         this.routes = routes;
     }
+
+    component: (new (properties: IPageComponentProperties<any>) => PageComponent<any>) | undefined;
+
+    defaultProps?: IPageComponentProperties<any> | undefined;
 
     public start(): void {
         if (this.isStarted) {
@@ -102,7 +107,7 @@ export class Router {
 
             const ComponentClass = matchedRoute.component;
 
-            const propsFromRoute: { id?: string; [key: string]: any } = matchedRoute.defaultProps || {};
+            const propsFromRoute: { id?: string;[key: string]: any } = matchedRoute.defaultProps || {};
 
             const { id = 'generated-id-' + Math.random().toString(36).substring(2, 10), ...restDefaultProps } = propsFromRoute;
 
@@ -113,7 +118,7 @@ export class Router {
                 router: this,
                 routeParams: routeParams
             };
-        
+
 
             this.currentComponent = new ComponentClass(componentProps) as PageComponent<any>;
 
