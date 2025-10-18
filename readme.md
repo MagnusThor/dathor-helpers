@@ -12,6 +12,7 @@ This library is designed for developers who prefer a minimal, framework-agnostic
 * **Data Observation:** Simple data observation using JavaScript Proxies.
 * **Form Serialization:** Easily serialize form data into JavaScript objects.
 * **Event Handling:** Streamlined event management functions.
+* **HTTP Fetch Helper:** Flexible wrapper around the native Fetch API with support for base URLs, JSON and FormData handling, query parameters, interceptors, and full control over requests and responses.
 * **General Helpers:** Various utility functions for common JavaScript tasks.
 * **Minimal Abstraction:** Designed for a straightforward approach, dathor-helpers minimizes abstraction layers to keep your code clean and efficient.
 
