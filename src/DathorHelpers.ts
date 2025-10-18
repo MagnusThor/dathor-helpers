@@ -117,21 +117,7 @@ export class DathorHelpers {
         });
     }
 
-    /**
-     * Creates a debounced function that delays invoking the provided function until after the specified delay has elapsed since the last time the debounced function was invoked.
-     *
-     * @param func - The function to debounce.
-     * @param delay - The number of milliseconds to delay.
-     * @returns A new debounced function.
-     */
-    static debounce(func: Function, delay: number): Function {
-        let timeoutId: ReturnType<typeof setTimeout>;
-        return function (this: any, ...args: any[]) {
-            clearTimeout(timeoutId);
-            timeoutId = setTimeout(() => func.apply(this, args), delay);
-        };
 
-    }
 
     /**
      * Retrieves the FormData object from a given HTML form element.
@@ -143,6 +129,14 @@ export class DathorHelpers {
         const formElement = typeof form === "string" ? $D.get(form) as HTMLFormElement : form;
         if (!formElement) return null;
         return new FormData(formElement);
+    }
+
+    debounce<T extends (...args: any[]) => void>(func: T, delay = 300): T {
+        let timer: number | undefined;
+        return ((...args: any[]) => {
+            clearTimeout(timer);
+            timer = window.setTimeout(() => func(...args), delay);
+        }) as T;
     }
 
     /**
@@ -952,6 +946,44 @@ export class DathorHelpers {
         }
         observeNested(observedData);
         return observedData;
+    }
+    /**
+     * Computes the Levenshtein (edit) distance between two strings.
+     *
+     * The Levenshtein distance is the minimum number of single-character edits
+     * (insertions, deletions, or substitutions) required to change string `a`
+     * into string `b`. This implementation uses a dynamic programming table to
+     * compute the distance and returns the final value at dp[a.length][b.length].
+     *
+     * @param a - The first string (source).
+     * @param b - The second string (target).
+     * @returns The Levenshtein distance as a non-negative integer.
+     *
+     * @example
+     * // returns 3
+     * levenshteinDistance("kitten", "sitting");
+     *
+     * @remarks
+     * - Comparison is case-sensitive.
+     * - Both `a` and `b` must be valid strings; passing non-string values will likely cause a runtime error.
+     * - Time complexity: O(m * n) where m = a.length and n = b.length.
+     * - Space complexity: O(m * n) for the full DP table; space can be reduced to O(min(m, n)) with a rolling-row optimization.
+     */
+    levenshteinDistance(a: string, b: string): number {
+        const dp: number[][] = Array.from({ length: a.length + 1 }, (_, i) => Array(b.length + 1).fill(0));
+        for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+        for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+        for (let i = 1; i <= a.length; i++) {
+            for (let j = 1; j <= b.length; j++) {
+                const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                dp[i][j] = Math.min(
+                    dp[i - 1][j] + 1,
+                    dp[i][j - 1] + 1,
+                    dp[i - 1][j - 1] + cost
+                );
+            }
+        }
+        return dp[a.length][b.length];
     }
 
 }

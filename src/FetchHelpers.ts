@@ -1,5 +1,9 @@
 export type RequestInterceptor = (input: RequestInfo, init: RequestInit) => Promise<[RequestInfo, RequestInit]> | [RequestInfo, RequestInit];
 export type ResponseInterceptor = (response: Response) => Promise<Response> | Response;
+/**
+ * Type definition for a global error handler.
+ */
+export type ErrorListener = (error: Error) => void;
 
 /**
  * Interface representing the successful result of a FetchHelper request.
@@ -13,24 +17,23 @@ export interface IFetchHelperResponse<T> extends Response {
 
 /**
  * A helper class for making HTTP requests using the Fetch API.
- * * Provides convenient methods for GET, POST, PUT, DELETE, and custom actions,
- * automatically handling URL construction, query parameters, request bodies,
- * and response parsing.
+ * * Provides centralized configuration, interception, and unified error handling
+ * for all HTTP requests (GET, POST, PUT, DELETE, and custom actions).
  * * @example
  * ```typescript
  * const api = new FetchHelper("[https://api.example.com](https://api.example.com)", { 
- * defaultHeaders: { Authorization: "Bearer token" } 
+ * defaultHeaders: { 'Authorization': 'Bearer token' },
+ * onError: (error) => console.error("Global API Error:", error.message)
  * });
- * // Result is an IFetchHelperResponse<User[]>, inheriting properties like .status
- * const result = await api.get<User[]>("/users", { page: 1 });
- * * console.log(result.data.length); // Accesses the parsed body
- * console.log(result.status);     // Accesses the inherited Response status
+ * // T defaults to 'unknown' and responseType defaults to 'json'.
+ * const result = await api.get<{ id: number }>("/status"); 
+ * * console.log(result.data.id, result.status);
  * ```
  * * @remarks
- * - All public methods now return an **IFetchHelperResponse<T>** which extends the native `Response` object and includes the parsed `.data`.
- * - **Interceptors** are still supported and work on the raw request/response objects.
- * - Supports setting `defaultHeaders` in the constructor for automatic inclusion in every request.
- * - Automatically sets `Content-Type: application/json` for JSON bodies.
+ * - **Return Type:** All public methods return an **IFetchHelperResponse<T>**, extending `Response` with the parsed `.data`.
+ * - **Error Handling:** Features a global `onError` listener that triggers for *any* request failure (network error or non-2xx HTTP status) before the error is re-thrown.
+ * - **Interceptors:** `requestInterceptor` and `responseInterceptor` allow for request lifecycle management (e.g., loading states).
+ * - **Body Handling:** Correctly handles JSON objects (default), `FormData`, and `URLSearchParams`.
  * * @param baseUrl - The base URL for all requests. Trailing slashes are removed.
  */
 export class FetchHelper {
@@ -38,32 +41,36 @@ export class FetchHelper {
     private requestInterceptor?: RequestInterceptor;
     private responseInterceptor?: ResponseInterceptor;
     private defaultHeaders: HeadersInit;
+    private onErrorListener?: ErrorListener; // New property
 
     /**
      * Initialize a FetchHelpers instance.
      *
      * @param baseUrl - Optional base URL to prepend to all request paths. Trailing slashes are removed from the provided value. Defaults to an empty string.
-     * @param options - Optional configuration object for interceptors and global headers.
+     * @param options - Optional configuration object for interceptors, global headers, and error handling.
      * @param options.requestInterceptor - Optional callback to intercept or modify requests before they are sent.
      * @param options.responseInterceptor - Optional callback to intercept or modify responses after they are received.
      * @param options.defaultHeaders - Optional headers that will be merged into every request (e.g., Authorization).
+     * @param options.onError - Optional callback executed for any request failure (network or non-2xx HTTP status) before the error is re-thrown.
      */
     constructor(baseUrl: string = "", options?: {
         requestInterceptor?: RequestInterceptor;
         responseInterceptor?: ResponseInterceptor;
         defaultHeaders?: HeadersInit;
+        onError?: ErrorListener;
     }) {
         this.baseUrl = baseUrl.replace(/\/+$/, "");
         this.requestInterceptor = options?.requestInterceptor;
         this.responseInterceptor = options?.responseInterceptor;
         this.defaultHeaders = options?.defaultHeaders ?? {};
+        this.onErrorListener = options?.onError; // Assign the new listener
     }
 
     /**
      * Constructs a complete URL by combining the base URL with a path and optional query parameters.
-     * * @param path - The path to append to the base URL. If it starts with 'http', it will be used as is.
+     * * @param path - The path to append to the base URL.
      * @param params - Optional key-value pairs to be added as query parameters.
-     * @returns A complete URL string with the path and query parameters (if provided).
+     * @returns A complete URL string.
      */
     private buildUrl(path: string = "", params?: Record<string, any>): string {
         let url = path.startsWith("http")
@@ -83,18 +90,14 @@ export class FetchHelper {
     }
 
     /**
-     * Execute an HTTP request using fetch, parse the response, and augment the Response object.
+     * Execute an HTTP request using fetch, parse the response, augment the Response object,
+     * and handle all errors centrally.
      *
-     * @typeParam T - The expected shape of the parsed response data.
-     *
-     * @param url - The URL to request.
-     * @param options - Fetch options extended with an optional `responseType` hint.
-     *
-     * @returns A Promise that resolves to an **IFetchHelperResponse<T>**, which extends the raw Response.
-     *
-     * @throws {Error} When the HTTP response is not ok (status outside the 200–299 range).
+     * @typeParam T - The expected shape of the parsed response data (defaults to `unknown`).
+     * @returns A Promise that resolves to an **IFetchHelperResponse<T>**.
+     * @throws {Error} Throws the original error after potentially calling the `onError` listener.
      */
-    private async request<T>(
+    private async request<T = unknown>(
         url: string,
         options: RequestInit & { responseType?: "json" | "text" | "blob" | "arrayBuffer" } = {}
     ): Promise<IFetchHelperResponse<T>> {
@@ -110,59 +113,79 @@ export class FetchHelper {
 
         let [finalUrl, requestInit]: [RequestInfo, RequestInit] = [url, finalOptions];
 
-        // Apply request interceptor
-        if (this.requestInterceptor) {
-            [finalUrl, requestInit] = await this.requestInterceptor(url, finalOptions);
+        try {
+            // Apply request interceptor
+            if (this.requestInterceptor) {
+                [finalUrl, requestInit] = await this.requestInterceptor(url, finalOptions);
+            }
+
+            let response = await fetch(finalUrl, requestInit);
+
+            // Apply response interceptor
+            if (this.responseInterceptor) {
+                response = await this.responseInterceptor(response);
+            }
+
+            if (!response.ok) {
+                const message = await response.text().catch(() => "");
+                const error = new Error(`HTTP ${response.status} ${response.statusText}: ${message}`);
+                
+                // --- Global Error Hook (HTTP Status Error) ---
+                if (this.onErrorListener) {
+                    this.onErrorListener(error);
+                }
+                // --- End Hook ---
+                
+                throw error; // Re-throw the error
+            }
+
+            let data: T;
+            // Clone the response before reading the body, as the body can only be read once.
+            const responseClone = response.clone(); 
+            
+            // Default responseType to "json" if not specified
+            const responseType = options.responseType ?? "json";
+
+            // Read and parse the response body based on responseType
+            switch (responseType) {
+                case "text":
+                    data = (await responseClone.text()) as unknown as T;
+                    break;
+                case "blob":
+                    data = (await responseClone.blob()) as unknown as T;
+                    break;
+                case "arrayBuffer":
+                    data = (await responseClone.arrayBuffer()) as unknown as T;
+                    break;
+                case "json":
+                default:
+                    data = (await responseClone.json()) as T;
+                    break;
+            }
+
+            // Augment the original Response object with the parsed data
+            return Object.assign(response, { data }) as IFetchHelperResponse<T>;
+
+        } catch (error) {
+            // --- Global Error Hook (Network/Parsing Error) ---
+            if (this.onErrorListener && error instanceof Error) {
+                this.onErrorListener(error);
+            }
+            // --- End Hook ---
+
+            throw error; // Essential: Re-throw the error so the consumer can catch it
         }
-
-        let response = await fetch(finalUrl, requestInit);
-
-        // Apply response interceptor
-        if (this.responseInterceptor) {
-            response = await this.responseInterceptor(response);
-        }
-
-        if (!response.ok) {
-            const message = await response.text().catch(() => "");
-            throw new Error(`HTTP ${response.status} ${response.statusText}: ${message}`);
-        }
-
-        let data: T;
-        // Clone the response before reading the body, as the body can only be read once.
-        const responseClone = response.clone(); 
-
-        // Read and parse the response body based on responseType
-        switch (options.responseType) {
-            case "text":
-                data = (await responseClone.text()) as unknown as T;
-                break;
-            case "blob":
-                data = (await responseClone.blob()) as unknown as T;
-                break;
-            case "arrayBuffer":
-                data = (await responseClone.arrayBuffer()) as unknown as T;
-                break;
-            default:
-                data = (await responseClone.json()) as T;
-        }
-
-        // Augment the original Response object with the parsed data
-        // We cast the merged object to the required type IFetchHelperResponse<T>
-        return Object.assign(response, { data }) as IFetchHelperResponse<T>;
     }
 
     // --- Public HTTP Methods ---
 
     /**
-     * Perform an HTTP GET request to a constructed URL and return the augmented response.
+     * Perform an HTTP GET request.
      *
-     * @typeParam T - The expected type of the parsed response data.
-     * @param path - Endpoint path to append to the base URL. Defaults to an empty string.
-     * @param params - Optional query parameters to serialize and include in the URL.
-     * @param options - Additional fetch options merged with { method: "GET" }.
-     * @returns A Promise that resolves to an **IFetchHelperResponse<T>** (Response object with the `.data` property).
+     * @typeParam T - The expected type of the parsed response data (defaults to `unknown`).
+     * @returns A Promise that resolves to an **IFetchHelperResponse<T>**.
      */
-    async get<T>(
+    async get<T = unknown>(
         path: string = "",
         params?: Record<string, any>,
         options?: RequestInit & {
@@ -174,30 +197,32 @@ export class FetchHelper {
     }
 
     /**
-     * Send a POST request and return the augmented response.
+     * Send a POST request.
      *
-     * @typeParam T - Expected shape of the parsed response data.
+     * @typeParam T - Expected shape of the parsed response data (defaults to `unknown`).
      * @typeParam ReqBody - Optional type of the outgoing JSON request body (defaults to Record<string, any>).
-     * @param path - Relative path to POST to.
-     * @param body - Request payload (FormData or plain object, which is JSON-stringified).
-     * @param options - Additional fetch options.
+     * @param body - Request payload (FormData, URLSearchParams, or plain object).
      * @returns A promise that resolves with an **IFetchHelperResponse<T>**.
      */
-    async post<T, ReqBody = Record<string, any>>(
+    async post<T = unknown, ReqBody = Record<string, any>>(
         path: string = "",
-        body?: ReqBody | FormData,
+        body?: ReqBody | FormData | URLSearchParams,
         options?: RequestInit & {
             responseType?: "json" | "text" | "blob" | "arrayBuffer";
         }
     ): Promise<IFetchHelperResponse<T>> {
-        const isFormData = body instanceof FormData;
         const headers = new Headers(options?.headers);
         let requestBody: BodyInit | undefined;
 
-        if (isFormData) {
+        if (body instanceof FormData) {
             requestBody = body;
+        } else if (body instanceof URLSearchParams) {
+            requestBody = body.toString();
         } else if (body && typeof body === "object") {
-            headers.set("Content-Type", "application/json");
+            // Only set Content-Type if it hasn't been explicitly set by the user
+            if (!headers.has("Content-Type")) {
+                headers.set("Content-Type", "application/json");
+            }
             requestBody = JSON.stringify(body);
         }
 
@@ -210,30 +235,31 @@ export class FetchHelper {
     }
 
     /**
-     * Perform an HTTP PUT request and return the augmented response.
+     * Perform an HTTP PUT request.
      *
-     * @typeParam T - Expected shape of the parsed response data.
+     * @typeParam T - Expected shape of the parsed response data (defaults to `unknown`).
      * @typeParam ReqBody - Optional type of the outgoing JSON request body (defaults to Record<string, any>).
-     * @param path - Path appended to the instance base URL.
-     * @param body - Request payload (FormData or plain object).
-     * @param options - Additional fetch options.
+     * @param body - Request payload (FormData, URLSearchParams, or plain object).
      * @returns A Promise that resolves to an **IFetchHelperResponse<T>**.
      */
-    async put<T, ReqBody = Record<string, any>>(
+    async put<T = unknown, ReqBody = Record<string, any>>(
         path: string = "",
-        body?: ReqBody | FormData,
+        body?: ReqBody | FormData | URLSearchParams,
         options?: RequestInit & {
             responseType?: "json" | "text" | "blob" | "arrayBuffer";
         }
     ): Promise<IFetchHelperResponse<T>> {
-        const isFormData = body instanceof FormData;
         const headers = new Headers(options?.headers);
         let requestBody: BodyInit | undefined;
 
-        if (isFormData) {
+        if (body instanceof FormData) {
             requestBody = body;
+        } else if (body instanceof URLSearchParams) {
+            requestBody = body.toString();
         } else if (body && typeof body === "object") {
-            headers.set("Content-Type", "application/json");
+            if (!headers.has("Content-Type")) {
+                headers.set("Content-Type", "application/json");
+            }
             requestBody = JSON.stringify(body);
         }
 
@@ -246,12 +272,9 @@ export class FetchHelper {
     }
 
     /**
-     * Sends an HTTP DELETE request and returns the augmented response.
+     * Sends an HTTP DELETE request.
      *
      * @typeParam T - The expected shape of the parsed response data (defaults to `void` for 204 No Content).
-     * @param path - The request path.
-     * @param params - Optional record of query parameters.
-     * @param options - Optional fetch options.
      * @returns A Promise that resolves to an **IFetchHelperResponse<T>**.
      */
     async delete<T = void>(
@@ -262,37 +285,38 @@ export class FetchHelper {
         }
     ): Promise<IFetchHelperResponse<T>> {
         const fullUrl = this.buildUrl(path, params);
-        // Note: DELETE requests here do not support a body, only query params, aligning with REST best practices.
         return this.request<T>(fullUrl, { method: "DELETE", ...options });
     }
 
     /**
-     * Perform a custom HTTP action (GET, POST, PUT, DELETE, etc.) and return the augmented response.
+     * Perform a custom HTTP action (GET, POST, PUT, DELETE, etc.).
      *
-     * @template T - Expected shape/type of the resolved response data.
+     * @template T - Expected shape/type of the resolved response data (defaults to `unknown`).
      * @template ReqBody - Optional type of the outgoing JSON request body (defaults to Record<string, any>).
      * @param actionPath - Relative endpoint path.
      * @param body - Optional request payload.
-     * @param options - Optional fetch options including `method` and `responseType`.
      * @returns Promise<IFetchHelperResponse<T>> - Resolves with the augmented Response.
      */
-    async action<T, ReqBody = Record<string, any>>(
+    async action<T = unknown, ReqBody = Record<string, any>>(
         actionPath: string,
-        body?: ReqBody | FormData,
+        body?: ReqBody | FormData | URLSearchParams,
         options?: RequestInit & {
             responseType?: "json" | "text" | "blob" | "arrayBuffer";
-            method?: "GET" | "POST" | "PUT" | "DELETE" | string; // Allow custom methods
+            method?: "GET" | "POST" | "PUT" | "DELETE" | string;
         }
     ): Promise<IFetchHelperResponse<T>> {
         const method = options?.method ?? (body ? "POST" : "GET");
-        const isFormData = body instanceof FormData;
         const headers = new Headers(options?.headers);
         let requestBody: BodyInit | undefined;
 
-        if (isFormData) {
+        if (body instanceof FormData) {
             requestBody = body;
+        } else if (body instanceof URLSearchParams) {
+            requestBody = body.toString();
         } else if (body && typeof body === "object") {
-            headers.set("Content-Type", "application/json");
+            if (!headers.has("Content-Type")) {
+                headers.set("Content-Type", "application/json");
+            }
             requestBody = JSON.stringify(body);
         }
 
