@@ -16,6 +16,17 @@ export interface IFetchHelperResponse<T> extends Response {
 }
 
 /**
+ * Interface representing the configuration options for the *FetchHelper CLIENT*.
+ * These options are set once in the constructor and apply to all subsequent requests.
+ */
+export interface IFetchHelperOptions {
+    requestInterceptor?: RequestInterceptor;
+    responseInterceptor?: ResponseInterceptor;
+    defaultHeaders?: HeadersInit;
+    onError?: ErrorListener;    
+}
+
+/**
  * A helper class for making HTTP requests using the Fetch API.
  * * Provides centralized configuration, interception, and unified error handling
  * for all HTTP requests (GET, POST, PUT, DELETE, and custom actions).
@@ -53,12 +64,7 @@ export class FetchHelper {
      * @param options.defaultHeaders - Optional headers that will be merged into every request (e.g., Authorization).
      * @param options.onError - Optional callback executed for any request failure (network or non-2xx HTTP status) before the error is re-thrown.
      */
-    constructor(baseUrl: string = "", options?: {
-        requestInterceptor?: RequestInterceptor;
-        responseInterceptor?: ResponseInterceptor;
-        defaultHeaders?: HeadersInit;
-        onError?: ErrorListener;
-    }) {
+    constructor(baseUrl: string = "", options?: IFetchHelperOptions) {
         this.baseUrl = baseUrl.replace(/\/+$/, "");
         this.requestInterceptor = options?.requestInterceptor;
         this.responseInterceptor = options?.responseInterceptor;

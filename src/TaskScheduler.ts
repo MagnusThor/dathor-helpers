@@ -1,3 +1,5 @@
+import DathorHelpers from "./DathorHelpers";
+
 export class TaskScheduler {
     private tasks: { id: number; time: number; callback: () => void; }[] = [];
     private animationFrameId: number | null = null;
@@ -13,6 +15,7 @@ export class TaskScheduler {
         this.tasks.sort((a, b) => a.time - b.time);
         this.start();
         return taskId;
+
     }
 
     removeTask(taskId: number): boolean {
