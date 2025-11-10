@@ -1,7 +1,6 @@
-// MathHelper.ts
+import { Point2D } from "./Point2D";
+import { Point3D } from "./Point3D";
 
-import { Point2D } from './Point2D';
-import { Point3D } from './Point3D';
 
 /**
  * A helper class for common math operations, including interpolation, 

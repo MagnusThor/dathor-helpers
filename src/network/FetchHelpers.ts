@@ -334,3 +334,14 @@ export class FetchHelper {
         });
     }
 }
+
+
+/**
+ * Factory class for creating FetchHelper instances.
+ * Provides a static method to instantiate FetchHelper objects with specified configurations.
+ */
+export class FetchHelperFactory {
+    static getFetchHelper(baseUrl: string = "", options?: IFetchHelperOptions): FetchHelper {
+        return new FetchHelper(baseUrl,options);
+    }
+}

@@ -1,12 +1,14 @@
-import { DOMHelpers } from './DOMHelpers';
-import { Utils } from './Utils';
-import { StringHelpers } from './StringHelpers';
-import { MathHelper } from './MathHelpers';
-import { ArrayBufferHelpers } from './ArrayBufferHelpers';
+import { DOMHelpers } from './dom/DOMHelpers';
+import { Utils } from './misc/Utils';
+import { StringHelpers } from './string/StringHelpers';
+import { MathHelper } from './math/MathHelpers';
+import { ArrayBufferHelpers } from './arraybuffers/ArrayBufferHelpers';
+import { TaskFactory } from './task/TaskFactory';
+import { FetchHelperFactory } from './network/FetchHelpers';
 
 
-
-export type IDathorHelpers = typeof DOMHelpers & typeof Utils & typeof StringHelpers & typeof MathHelper & typeof ArrayBufferHelpers;
+export type IDathorHelpers = typeof DOMHelpers & typeof Utils & typeof StringHelpers & typeof MathHelper & typeof ArrayBufferHelpers
+& typeof TaskFactory & typeof FetchHelperFactory
 
 
 /**
@@ -28,7 +30,15 @@ export const DathorHelpers = {
     ...MathHelper,
 
     // ArrayBuffer Helpers
-    ...ArrayBufferHelpers
+    ...ArrayBufferHelpers,
+
+
+    // TaskFactory
+    ...TaskFactory,
+
+
+    // FetchHelperFactory
+    ...FetchHelperFactory
 
 } as IDathorHelpers;
 

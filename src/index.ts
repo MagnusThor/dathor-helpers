@@ -1,14 +1,17 @@
 export * from './DathorHelpers'; 
-export * from './TaskScheduler'
-export * from './FetchHelpers'
-export * from  './QueryableArray'
-export * from './MathHelpers'
-export * from './DOMHelpers'
-export * from './StringHelpers'
-export * from './Point2D'
-export * from './Point3D'
-export * from './ArrayBufferHelpers'
-export * from './Utils'
+export * from './task/TaskScheduler'
+export * from './task/Task'
+export * from './task/TaskFactory'
+export * from './task/WorkerTask'
+export * from './network/FetchHelpers'
+export * from  './array/QueryableArray'
+export * from './math/MathHelpers'
+export * from './dom/DOMHelpers'
+export * from './string/StringHelpers'
+export * from './math/Point2D'
+export * from './math/Point3D'
+export * from './arraybuffers/ArrayBufferHelpers'
+export * from './misc/Utils'
 
 
 

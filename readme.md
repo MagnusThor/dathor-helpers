@@ -15,8 +15,11 @@ This library is designed for developers who prefer a minimal, framework-agnostic
 * **HTTP Fetch Helper:** Flexible wrapper around the native Fetch API with support for base URLs, JSON and FormData handling, query parameters, interceptors, and full control over requests and responses.
 * **General Helpers:** Various utility functions for common JavaScript tasks.
 * **Minimal Abstraction:** Designed for a straightforward approach, dathor-helpers minimizes abstraction layers to keep your code clean and efficient.
+* **Task Scheduler & Factory** : High-precision, requestAnimationFrame-based scheduler for time-critical, I/O-bound tasks (Task.Delay, Task.WhenAll). Provides true CPU parallelism using secure Web Worker management (TaskFactory.RunWebWorkerTask) and built-in cancellation support (CancellationTokenSource) for robust asynchronous control flow (Task.ContinueWith, TaskFactory.ForAsync).
 
 ## Installation
 
-```bash
-npm install dathor-helpers
+   
+        npm install dathor-helpers
+
+
