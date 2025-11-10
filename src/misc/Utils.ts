@@ -1,8 +1,8 @@
 
-import { IDathorHelpers } from "./DathorHelpers";
-import { FetchHelper, IFetchHelperOptions } from "./FetchHelpers";
-import { QueryableArray } from "./QueryableArray";
-import { TaskScheduler } from "./TaskScheduler"; // Required for createTaskScheduler
+import { IDathorHelpers } from "../DathorHelpers";
+import { FetchHelper, IFetchHelperOptions } from "../network/FetchHelpers";
+import { QueryableArray } from "../array/QueryableArray";
+import { TaskScheduler } from "../task/TaskScheduler"; // Required for createTaskScheduler
 
 const DathorHelpers = {} as IDathorHelpers;
 
