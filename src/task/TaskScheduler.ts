@@ -1,10 +1,10 @@
-// TaskScheduler.ts (JSDoc Implemented)
-import { CancellationToken, Task } from "./Task"; // Assuming these are imported from the combined file
+// Assuming Task, CancellationToken, and OperationCanceledError are imported/defined.
+import { Task, CancellationToken, OperationCanceledError } from "./Task"; 
 
 /**
  * A time-based task scheduler that utilizes the browser's requestAnimationFrame
  * loop for high-precision, frame-rate-synchronized scheduling.
- * * It supports basic scheduling operations, pausing/resuming, and .NET TPL-inspired
+ * It supports basic scheduling operations, pausing/resuming, and .NET TPL-inspired
  * asynchronous operations via the `delay` method.
  */
 export class TaskScheduler {
@@ -24,7 +24,7 @@ export class TaskScheduler {
      */
     addTask(callback: () => void, delay: number): number {
         const taskId = this.nextTaskId++;
-        // Use idleTime to account for time spent paused
+        // Use idleTime to account for time spent paused, setting the target time.
         this.tasks.push({ id: taskId, time: delay + this.idleTime, callback });
         this.tasks.sort((a, b) => a.time - b.time);
         this.start();
@@ -57,7 +57,7 @@ export class TaskScheduler {
     rescheduleTask(taskId: number, newDelay: number): boolean {
         const task = this.tasks.find(task => task.id === taskId);
         if (task) {
-            // Apply new delay relative to current idle time
+            // Apply new delay relative to current total idle time
             task.time = newDelay + this.idleTime; 
             this.tasks.sort((a, b) => a.time - b.time);
             return true;
@@ -67,7 +67,6 @@ export class TaskScheduler {
 
     /**
      * Starts or resumes the requestAnimationFrame scheduling loop.
-     * If paused, it updates timing variables to account for the pause duration.
      */
     start(): void {
         if (this.animationFrameId !== null) return;
@@ -77,10 +76,6 @@ export class TaskScheduler {
             this.idleTime += performance.now() - this.pauseStartTime;
             this.pauseStartTime = null;
             this.isPaused = false;
-            // Note: Task times were already adjusted in the previous implementation logic
-            // for now, we leave the idleTime mechanism to handle pause adjustments.
-            this.tasks.forEach(task => task.time += this.idleTime);
-            this.tasks.sort((a, b) => a.time - b.time);
         }
 
         // Adjust startTime by idleTime to ensure elapsed time is correct after pause
@@ -143,41 +138,37 @@ export class TaskScheduler {
         }
     }
     
-    // ------------------------------------------
-    // New Task/Cancellation Integration (TPL Analogue)
-    // ------------------------------------------
-
     /**
      * Creates a Task that completes after a specified delay, scheduled using 
      * the requestAnimationFrame loop.
-     * * This allows the delay to be awaited using async/await and respects cancellation.
-     * (Equivalent to .NET's Task.Delay(delay, token))
      * @param {number} delay The delay in milliseconds.
      * @param {CancellationToken} [token] An optional CancellationToken to enable cancellation.
      * @returns {Task<void>} A Task that resolves after the delay or rejects with an 
-     * Error if canceled.
+     * OperationCanceledError if canceled.
      */
     public delay(delay: number, token?: CancellationToken): Task<void> {
-        // If cancellation is already requested, return a rejected/canceled Task immediately
+        // If cancellation is already requested, return a Canceled Task immediately
         if (token?.isCancellationRequested) {
-             return new Task<void>((_resolve, reject) => reject(new Error("Task was canceled.")));
+             return new Task<void>((_resolve, reject) => reject(new OperationCanceledError("Task was canceled before execution.")));
         }
 
         let taskId: number | null = null;
 
         const taskPromise = new Task<void>((resolve, reject) => {
             const delayCallback = () => {
-                // Final check to see if cancellation was requested right before execution
+                // Task is being executed from the scheduler's loop
                 if (taskId !== null) {
                     if (token?.isCancellationRequested) {
-                         reject(new Error("Task was canceled."));
+                        // This path shouldn't usually be hit if cancellation registers quickly,
+                        // but handles race conditions.
+                         reject(new OperationCanceledError("Task was canceled."));
                     } else {
                         resolve();
                     }
                 }
             };
             
-            // 1. Add the task to the underlying scheduler
+            // 1. Add the task to the scheduler queue
             taskId = this.addTask(delayCallback, delay);
 
             // 2. Register for cancellation
@@ -188,8 +179,8 @@ export class TaskScheduler {
                         this.removeTask(taskId);
                         taskId = null;
                     }
-                    // Reject the Task promise
-                    reject(new Error("Task was canceled."));
+                    // Reject the Task promise with the specific error type
+                    reject(new OperationCanceledError("Task was canceled."));
                 });
             }
         });
