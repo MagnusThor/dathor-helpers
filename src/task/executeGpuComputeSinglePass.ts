@@ -1,8 +1,10 @@
-import { GpuComputeRequest } from "./GpuCompute";
+import { GpuComputeRequest, safeDestroy } from "./GpuCompute";
 import { getWorkgroupSize } from "./getWorkgroupSize";
 
+
 export async function executeGpuComputeSinglePass<TResult>(
-  config: GpuComputeRequest<TResult>): Promise<TResult> {
+  config: GpuComputeRequest<TResult>
+): Promise<TResult> {
   const checkCancellation = () => config.token?.throwIfCancellationRequested();
   checkCancellation();
 
@@ -13,7 +15,8 @@ export async function executeGpuComputeSinglePass<TResult>(
   const device = await adapter.requestDevice();
 
   const buffers: GPUBuffer[] = [];
-  const toArrayBuffer = (view: ArrayBufferView) => view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+  const toArrayBuffer = (view: ArrayBufferView) =>
+    view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
 
   try {
     const wg = getWorkgroupSize(device.limits);
@@ -29,9 +32,8 @@ export async function executeGpuComputeSinglePass<TResult>(
     const bindGroupEntries: GPUBindGroupEntry[] = [];
     let bindingIndex = 0;
 
-    // --- Input Buffers (generalized) ---
+    // --- Input Buffers ---
     const allInputs = config.inputs ?? [];
-
     for (const input of allInputs) {
       const arrayBuffer = toArrayBuffer(input.data);
       const buf = device.createBuffer({
@@ -107,7 +109,7 @@ export async function executeGpuComputeSinglePass<TResult>(
 
     checkCancellation();
 
-    // --- Pipeline & Dispatch ---
+    // --- Pipeline & Bind Group ---
     const bindGroupLayout = device.createBindGroupLayout({ entries: bindGroupLayoutEntries });
     const pipeline = device.createComputePipeline({
       layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
@@ -118,6 +120,7 @@ export async function executeGpuComputeSinglePass<TResult>(
       entries: bindGroupEntries,
     });
 
+    // --- Dispatch ---
     const totalWGX = Math.ceil(arrayLength / wg.x);
     const dispatchX = Math.min(totalWGX, device.limits.maxComputeWorkgroupsPerDimension);
 
@@ -128,14 +131,18 @@ export async function executeGpuComputeSinglePass<TResult>(
     pass.dispatchWorkgroups(dispatchX, 1, 1);
     pass.end();
 
+    // --- Readback Buffer ---
     const readbackBuffer = device.createBuffer({
       size: config.outputSizeInBytes!,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
     buffers.push(readbackBuffer);
 
-    encoder.copyBufferToBuffer(outputBuffer, 0, readbackBuffer, 0, config.outputSizeInBytes);
+    encoder.copyBufferToBuffer(outputBuffer, 0, readbackBuffer, 0, config.outputSizeInBytes!);
     device.queue.submit([encoder.finish()]);
+
+    // Destroy input & output buffers early; we only need readback
+    buffers.filter(b => b !== readbackBuffer).forEach(safeDestroy);
 
     await readbackBuffer.mapAsync(GPUMapMode.READ);
     checkCancellation();
@@ -143,8 +150,10 @@ export async function executeGpuComputeSinglePass<TResult>(
     const data = readbackBuffer.getMappedRange().slice(0);
     readbackBuffer.unmap();
 
+    safeDestroy(readbackBuffer);
     return config.deserializer(data);
   } finally {
-    buffers.forEach((b) => b.destroy());
+    // Safety: destroy any remaining buffers
+    buffers.forEach(safeDestroy);
   }
 }

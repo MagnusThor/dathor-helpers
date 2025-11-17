@@ -1,13 +1,22 @@
+import { createGpuRequest } from "./createGpuRequest";
 import { executeGpuComputeMultiPass } from "./executeGpuComputeMultiPass";
 import { executeGpuComputeSinglePass } from "./executeGpuComputeSinglePass";
+import { GpuTask } from "./GpuTask";
 import { CancellationToken, OperationCanceledError, Task } from "./Task";
+
+
+// Helper to destroy a buffer safely
+export const safeDestroy = (buffer: GPUBuffer | null) => {
+    try { buffer?.destroy(); } catch {}
+};
 
 
 export enum GpuExecutionType {
     SinglePass = 'SINGLE_PASS',
-    MultiPass = 'MULTI_PASS' 
+    MultiPass = 'MULTI_PASS',
+    SinglePassOnWorker = 'SINGLE_PASS_WORKER',
+    MultiPassOnWorker = 'MULTI_PASS_WORKER',
 }
-
 
 /**
  * Type descriptor for each field in the GPU argument struct.
@@ -23,88 +32,6 @@ export type GpuArgType =
   | "mat3"
   | "mat4";
 
-
- /**
- * Creates a GPU-aligned Float32Array suitable for WebGPU uniform buffers.
- * Automatically handles std140-like alignment (vec3 padded to vec4, etc.)
- *
- * Example:
- * const args = createGpuArgumentBuffer({
- *   direction: { type: "uint", value: 1 },
- *   color: { type: "vec3", value: [1, 0.5, 0.2] },
- * });
- *
- * device.queue.writeBuffer(argumentBuffer, 0, args);
- */
-export function createGpuArgumentBuffer(
-  schema: Record<string, { type: GpuArgType; value: number | number[] }>
-): Float32Array {
-  const alignments: Record<GpuArgType, number> = {
-    int: 4,
-    uint: 4,
-    float: 4,
-    vec2: 8,
-    vec3: 16,
-    vec4: 16,
-    mat2: 16 * 2,
-    mat3: 16 * 3,
-    mat4: 16 * 4,
-  };
-
-  // const sizes: Record<GpuArgType, number> = {
-  //   int: 4,
-  //   uint: 4,
-  //   float: 4,
-  //   vec2: 8,
-  //   vec3: 12,
-  //   vec4: 16,
-  //   mat2: 16 * 2,
-  //   mat3: 16 * 3,
-  //   mat4: 16 * 4,
-  // };
-
-  let offset = 0;
-  const tempBuffer: number[] = [];
-
-  for (const [key, { type, value }] of Object.entries(schema)) {
-    const align = alignments[type];
-    const baseFloats = Array.isArray(value) ? value : [value];
-
-    // Align offset to nearest multiple of alignment (in floats)
-    const alignFloats = align / 4;
-    while (offset % alignFloats !== 0) {
-      tempBuffer.push(0);
-      offset++;
-    }
-
-    // Add value
-    tempBuffer.push(...baseFloats);
-    offset += baseFloats.length;
-
-    // Pad vec3 to 4 floats
-    if (type === "vec3") {
-      while (offset % 4 !== 0) {
-        tempBuffer.push(0);
-        offset++;
-      }
-    }
-
-    // Pad matrices to 16-byte boundaries
-    if (type.startsWith("mat")) {
-      while (offset % 4 !== 0) {
-        tempBuffer.push(0);
-        offset++;
-      }
-    }
-  }
-
-  // Align total size to 16-byte multiple
-  const totalBytes = Math.ceil((tempBuffer.length * 4) / 16) * 16;
-  const view = new Float32Array(totalBytes / 4);
-  view.set(tempBuffer);
-
-  return view;
-}
 
 
 export interface GpuComputeInput {
@@ -128,26 +55,12 @@ export interface GpuComputeRequest<TResult> {
 }
 
 
-export abstract class GpuTask<TResult> {
-    /**
-     * Prepares the low-level GpuComputeRequest object for the execution engine.
-     */
-    public abstract getRunConfig(): GpuComputeRequest<TResult>;
+export type GpuComputeArg = ArrayBuffer | ArrayBufferView | number | string;
 
-    /**
-     * Determines which execution function (SinglePass, MultiPass, etc.) the runner should use.
-     */
-    public abstract readonly executionType: GpuExecutionType;
+export type GpuComputeArguments = Record<string, GpuComputeArg>;
 
-    /**
-     * Executes the task using the GpuTaskRunner (Compute class).
-     * @param token Optional cancellation token.
-     */
-    public run(token?: CancellationToken): Task<TResult> {
-        // Now passes the token to the runner
-        return GpuTaskRunner.execute(this, token);
-    }
-}
+
+
 
 export class GpuTaskRunner {
     /**

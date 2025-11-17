@@ -184,6 +184,7 @@ export class TaskFactory {
      * @returns {Task<T>} A Task that completes when the worker returns the result.
      */
     public static RunWebWorkerTask<T>(manager: WorkerTask, functionName: string, args: any): Task<T> {
+        console.log(`dispatchWorkerAction called on ${manager.constructor.name} with function ${functionName}`);
         return manager.dispatchWorkerAction<T>(functionName, args);
     }
 }

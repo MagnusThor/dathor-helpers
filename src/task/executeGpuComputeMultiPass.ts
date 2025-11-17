@@ -1,5 +1,6 @@
-import { GpuComputeRequest } from "./GpuCompute";
+import { GpuComputeRequest, safeDestroy } from "./GpuCompute";
 import { getWorkgroupSize } from "./getWorkgroupSize";
+
 
 export async function executeGpuComputeMultiPass<TResult>(
   config: GpuComputeRequest<TResult>
@@ -30,7 +31,6 @@ export async function executeGpuComputeMultiPass<TResult>(
     const wg = getWorkgroupSize(device.limits);
     const N = config.arrayLength;
 
-    // --- Ensure array length is a power of 2 for multi-pass algorithms ---
     const log2N = Math.log2(N);
     if (!Number.isInteger(log2N)) {
       throw new Error("Array length must be a power of two for multi-pass algorithms.");
@@ -55,6 +55,7 @@ export async function executeGpuComputeMultiPass<TResult>(
 
       new Uint8Array(buffer.getMappedRange()).set(new Uint8Array(data));
       buffer.unmap();
+
       createdBuffers.push(buffer);
       storageBuffers.push(buffer);
     }
@@ -75,8 +76,6 @@ export async function executeGpuComputeMultiPass<TResult>(
 
     // --- Optional argument buffer ---
     if (config.argumentData) {
-
-
       const argData = toArrayBuffer(config.argumentData);
 
       argumentBuffer = device.createBuffer({
@@ -166,7 +165,6 @@ export async function executeGpuComputeMultiPass<TResult>(
       size: config.outputSizeInBytes ?? N * 4,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
-    createdBuffers.push(readbackBuffer);
 
     const copyEncoder = device.createCommandEncoder();
     copyEncoder.copyBufferToBuffer(
@@ -178,16 +176,24 @@ export async function executeGpuComputeMultiPass<TResult>(
     );
     device.queue.submit([copyEncoder.finish()]);
 
+    // Destroy storage buffers now; we only need readback
+    storageBuffers.forEach(safeDestroy);
+    storageBuffers.length = 0;
+
+    // --- Map and return result ---
     await readbackBuffer.mapAsync(GPUMapMode.READ);
     checkCancellation();
     const mapped = readbackBuffer.getMappedRange();
     const resultBuffer = mapped.slice(0);
     readbackBuffer.unmap();
 
+    safeDestroy(paramsUniformBuffer);
+    safeDestroy(argumentBuffer);
+    safeDestroy(readbackBuffer);
+
     return config.deserializer(resultBuffer);
   } finally {
-    createdBuffers.forEach((b) => {
-      try { b.destroy(); } catch {}
-    });
+    // Cleanup any remaining buffers
+    createdBuffers.forEach(safeDestroy);
   }
 }

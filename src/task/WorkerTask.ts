@@ -1,68 +1,82 @@
-import { Task } from "./Task";
-
-
-/**
- * Manages communication with a single Web Worker instance, allowing asynchronous
- * execution of named, CPU-bound functions (actions) in a separate thread.
- */
-export class WorkerTask {
-    private nextTaskId: number;
-    private worker: Worker;
-    private pendingTasks: Map<number, { resolve: (value: any) => void; reject: (reason?: any) => void; }>;
+    import { extractTransferables } from "./extractTransferables";
+    import { Task } from "./Task";
+    import { OperationCanceledError } from "./Task";
+    import type { CancellationToken } from "./Task";
 
     /**
-     * Initializes the WorkerTask manager with a new Web Worker instance.
-     * @param {string} WORKER_URL The URL or Blob URL of the worker script.
+     * A managed worker task helper that allows dispatching async functions to a dedicated Worker.
+     * Automatically serializes messages, awaits responses, and wraps the result in a Task<T>.
      */
-    constructor(WORKER_URL: string) {
-        this.pendingTasks = new Map<number, { resolve: (value: any) => void; reject: (reason?: any) => void }>();
+    export class WorkerTask {
+      //  private readonly worker: Worker;
+        private nextId = 0;
+        private pending = new Map<
+            number,
+            { resolve: (value: any) => void; reject: (reason: any) => void }
+        >();
 
-        this.worker = new Worker(WORKER_URL);
-        this.worker.onmessage = (e) => {
-            const { taskId, status, result, error } = e.data;
-            const taskPromise = this.pendingTasks.get(taskId);
+        constructor(public readonly worker: Worker, options?: WorkerOptions) {
+          
+            this.worker.onmessage = this.handleMessage.bind(this);
+            this.worker.onerror = this.handleError.bind(this);
+        }
 
-            if (taskPromise) {
-                if (status === 'completed') {
-                    taskPromise.resolve(result);
-                } else if (status === 'error') {
-                    // Reject with a clear error message including worker details
-                    taskPromise.reject(new Error(`Worker Task ${taskId} failed: ${error}`));
+        private handleMessage(e: MessageEvent) {
+            const { id, result, error } = e.data;
+            const entry = this.pending.get(id);
+            if (!entry) return;
+            this.pending.delete(id);
+
+            if (error) {
+                entry.reject(new Error(error));
+            } else {
+                entry.resolve(result);
+            }
+        }
+
+        private handleError(e: ErrorEvent) {
+           
+            // Reject all pending promises
+            for (const [, entry] of this.pending.entries()) {
+                entry.reject(new Error(e.message));
+            }
+            this.pending.clear();
+        }
+
+        /**
+         * Dispatches a worker-side function by name, passing args as structured clone data.
+         * Returns a Task<T> that resolves when the worker posts back the result.
+         */
+        public dispatchWorkerAction<T>(
+            functionName: string,
+            args: any,
+            transfer?: Transferable[],
+            token?: CancellationToken
+        ): Task<T> {
+            return new Task<T>((resolve, reject) => {
+                if (token?.isCancellationRequested) {
+                    reject(new OperationCanceledError("Worker task was canceled before dispatch."));
+                    return;
                 }
-                this.pendingTasks.delete(taskId);
-            }
-        };
-        this.nextTaskId = 0;
+                if (typeof functionName !== "string") {
+                    throw new Error("Invalid functionName: must be a string");
+                }
+                const id = this.nextId++;
+                this.pending.set(id, { resolve, reject });
+                try {
+                    this.worker.postMessage({ id, functionName, args }, transfer ? transfer : extractTransferables(args));
+                } catch (err) {
+                    this.pending.delete(id);
+                    reject(err);
+                }
+                token?.register(() => {
+                    this.worker.postMessage({ cancel: id });
+                    reject(new OperationCanceledError("Worker task was canceled."));
+                });
+            });
+        }
+
+        public terminate(): void {
+            this.worker.terminate();
+        }
     }
-
-    /**
-     * Dispatches a request to the managed worker to execute a pre-defined function.
-     * @template T The expected return type from the worker function.
-     * @param {string} action The name of the function to run (must be defined in the worker script's CpuFunctions).
-     * @param {any} payload The structured data object to pass to the worker function.
-     * @returns {Task<T>} A Task that resolves with the result from the worker.
-     */
-    public dispatchWorkerAction<T>(action: string, payload: any): Task<T> {
-        const taskId = this.nextTaskId++;
-        return new Task<T>((resolve, reject) => {
-            this.pendingTasks.set(taskId, { resolve, reject });
-            try {
-                this.worker.postMessage({ action, payload, taskId });
-            } catch (e) {
-                this.pendingTasks.delete(taskId);
-                reject(new Error(`Failed to post message to worker: ${e instanceof Error ? e.message : String(e)}`));
-            }
-        });
-    }
-
-    /**
-     * Terminates the underlying Web Worker.
-     */
-    public dispose(): void {
-        this.worker.terminate();
-        this.pendingTasks.clear();
-    }
-}
-
-
-
